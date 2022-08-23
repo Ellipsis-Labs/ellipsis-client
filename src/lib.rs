@@ -182,7 +182,7 @@ impl ClientSubset for Arc<RpcClient> {
     async fn fetch_account(
         &self,
         key: Pubkey,
-    ) -> std::result::Result<Account, LightweightClientError> {
+    ) -> LightweightClientResult<Account> {
         self.fetch_account(key)
             .await
             .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
