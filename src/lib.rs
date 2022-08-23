@@ -15,7 +15,7 @@ use solana_program_test::BanksClientError;
 use solana_sdk::{
     account::Account,
     commitment_config::{CommitmentConfig, CommitmentLevel},
-    signature::Keypair,
+    signature::{Keypair, Signature},
     signer::Signer,
     transaction::Transaction,
     transport::TransportError,
@@ -78,12 +78,9 @@ pub trait ClientSubset {
         &self,
         mut tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult;
-    async fn fetch_latest_blockhash(&self) -> Result<Hash, LightweightClientError>;
-    async fn fetch_account(
-        &self,
-        key: Pubkey,
-    ) -> std::result::Result<Account, LightweightClientError>;
+    ) -> LightweightClientResult<Signature>;
+    async fn fetch_latest_blockhash(&self) -> LightweightClientResult<Hash>;
+    async fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account>;
 }
 
 pub trait ClientSubsetSync {
@@ -91,9 +88,9 @@ pub trait ClientSubsetSync {
         &self,
         tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult;
-    fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError>;
-    fn fetch_account(&self, key: Pubkey) -> std::result::Result<Account, LightweightClientError>;
+    ) -> LightweightClientResult<Signature>;
+    fn fetch_latest_blockhash(&self) -> LightweightClientResult<Hash>;
+    fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account>;
 }
 
 pub struct LightweightSolanaClient {
@@ -136,7 +133,7 @@ impl LightweightSolanaClient {
         &self,
         instructions: Vec<Instruction>,
         mut signers: Vec<&Keypair>, // todo: use slice
-    ) -> std::result::Result<(), LightweightClientError> {
+    ) -> LightweightClientResult<Signature> {
         signers.insert(0, &self.payer);
         self.client
             .process_transaction(
@@ -146,7 +143,7 @@ impl LightweightSolanaClient {
             .await
     }
 
-    pub async fn get_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError> {
+    pub async fn get_latest_blockhash(&self) -> LightweightClientResult<Hash> {
         self.client.fetch_latest_blockhash().await
     }
 
@@ -157,7 +154,7 @@ impl LightweightSolanaClient {
     pub async fn get_account(
         &self,
         key: Pubkey,
-    ) -> std::result::Result<Account, LightweightClientError> {
+    ) -> LightweightClientResult<Account> {
         self.client.fetch_account(key).await
     }
 }
@@ -168,7 +165,7 @@ impl ClientSubset for Arc<RpcClient> {
         &self,
         tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult {
+    ) -> LightweightClientResult<Signature> {
         let signers_owned = signers.into_iter().map(|&i| clone_keypair(i)).collect_vec();
         let signers = signers_owned.iter().collect();
         self.process_transaction(tx, &signers)
@@ -197,7 +194,7 @@ impl ClientSubsetSync for RpcClient {
         &self,
         mut tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult {
+    ) -> LightweightClientResult<Signature> {
         tx.partial_sign(signers, self.get_latest_blockhash()?);
         self.send_and_confirm_transaction_with_spinner_and_config(
             &tx,
@@ -210,7 +207,7 @@ impl ClientSubsetSync for RpcClient {
                 max_retries: None,
             },
         )?;
-        Ok(())
+        Ok(tx.signatures[0])
     }
 
     fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError> {
@@ -233,13 +230,14 @@ impl ClientSubset for RwLock<BanksClient> {
         &self,
         mut tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult {
+    ) -> LightweightClientResult<Signature> {
         tx.partial_sign(signers, self.fetch_latest_blockhash().await?);
+        let sig = tx.signatures[0];
         self.write()
             .await
             .process_transaction_with_commitment(tx, CommitmentLevel::Confirmed)
             .await?;
-        Ok(())
+        Ok(sig)
     }
 
     async fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError> {
