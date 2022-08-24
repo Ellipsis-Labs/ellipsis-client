@@ -129,7 +129,7 @@ impl LightweightSolanaClient {
         })
     }
 
-    pub async fn sign_send_instructions(
+    pub async fn sign_send_instructions_with_payer(
         &self,
         instructions: Vec<Instruction>,
         mut signers: Vec<&Keypair>, // todo: use slice
@@ -143,6 +143,25 @@ impl LightweightSolanaClient {
             .await
     }
 
+    pub async fn sign_send_instructions(
+        &self,
+        instructions: Vec<Instruction>,
+        mut signers: Vec<&Keypair>, // todo: use slice
+    ) -> LightweightClientResult<Signature> {
+        let payer = if signers.len() > 0 {
+            signers[0].pubkey()
+        } else {
+            signers.insert(0, &self.payer);
+            self.payer.pubkey()
+        };
+        self.client
+            .process_transaction(
+                Transaction::new_with_payer(&instructions, Some(&payer)),
+                &signers,
+            )
+            .await
+    }
+
     pub async fn get_latest_blockhash(&self) -> LightweightClientResult<Hash> {
         self.client.fetch_latest_blockhash().await
     }
@@ -151,10 +170,7 @@ impl LightweightSolanaClient {
         self.rent.minimum_balance(size) as u64
     }
 
-    pub async fn get_account(
-        &self,
-        key: Pubkey,
-    ) -> LightweightClientResult<Account> {
+    pub async fn get_account(&self, key: Pubkey) -> LightweightClientResult<Account> {
         self.client.fetch_account(key).await
     }
 }
@@ -179,10 +195,7 @@ impl ClientSubset for Arc<RpcClient> {
             .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
     }
 
-    async fn fetch_account(
-        &self,
-        key: Pubkey,
-    ) -> LightweightClientResult<Account> {
+    async fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account> {
         self.fetch_account(key)
             .await
             .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
