@@ -182,23 +182,32 @@ impl ClientSubset for Arc<RpcClient> {
         tx: Transaction,
         signers: &Vec<&Keypair>,
     ) -> LightweightClientResult<Signature> {
+        let client = self.clone();
         let signers_owned = signers.into_iter().map(|&i| clone_keypair(i)).collect_vec();
-        let signers = signers_owned.iter().collect();
-        self.process_transaction(tx, &signers)
-            .await
-            .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+
+        tokio::task::spawn_blocking(move || {
+            let signers = signers_owned.iter().collect();
+            (*client).process_transaction(tx, &signers)
+        })
+        .await
+        .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+        .and_then(|e| e)
     }
 
-    async fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError> {
-        self.fetch_latest_blockhash()
+    async fn fetch_latest_blockhash(&self) -> LightweightClientResult<Hash> {
+        let client = self.clone();
+        tokio::task::spawn_blocking(move || (*client).fetch_latest_blockhash())
             .await
             .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+            .and_then(|e| e)
     }
 
     async fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account> {
-        self.fetch_account(key)
+        let client = self.clone();
+        tokio::task::spawn_blocking(move || (*client).fetch_account(key))
             .await
             .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+            .and_then(|e| e)
     }
 }
 
