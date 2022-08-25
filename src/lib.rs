@@ -1,3 +1,4 @@
+#![feature(const_trait_impl)]
 use anyhow::anyhow;
 use async_trait::async_trait;
 use itertools::Itertools;
@@ -95,8 +96,27 @@ pub trait ClientSubsetSync {
 
 pub struct LightweightSolanaClient {
     pub client: Arc<dyn ClientSubset + 'static + Sync + Send>,
-    rent: Rent,
+    pub rent: Rent,
     pub payer: Keypair,
+}
+
+impl Clone for LightweightSolanaClient {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            rent: self.rent.clone(),
+            payer: clone_keypair(&self.payer),
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self)
+    where
+        Self: ~const std::marker::Destruct,
+    {
+        self.client = source.client.clone();
+        self.rent = source.rent.clone();
+        self.payer = clone_keypair(&source.payer);
+    }
 }
 
 impl LightweightSolanaClient {
