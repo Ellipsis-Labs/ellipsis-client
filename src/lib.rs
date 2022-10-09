@@ -1,4 +1,3 @@
-#![feature(const_trait_impl)]
 use anyhow::anyhow;
 use async_trait::async_trait;
 use itertools::Itertools;
@@ -21,9 +20,13 @@ use solana_sdk::{
     transaction::Transaction,
     transport::TransportError,
 };
+use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use std::sync::{Arc, PoisonError};
 use thiserror::Error;
 use tokio::sync::RwLock;
+use transaction_utils::{parse_transaction, ParsedTransaction};
+
+pub mod transaction_utils;
 
 pub type LightweightClientResult<T = ()> = std::result::Result<T, LightweightClientError>;
 
@@ -81,6 +84,10 @@ pub trait ClientSubset {
         signers: &Vec<&Keypair>,
     ) -> LightweightClientResult<Signature>;
     async fn fetch_latest_blockhash(&self) -> LightweightClientResult<Hash>;
+    async fn fetch_transaction(
+        &self,
+        signature: &Signature,
+    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta>;
     async fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account>;
 }
 
@@ -91,6 +98,10 @@ pub trait ClientSubsetSync {
         signers: &Vec<&Keypair>,
     ) -> LightweightClientResult<Signature>;
     fn fetch_latest_blockhash(&self) -> LightweightClientResult<Hash>;
+    fn fetch_transaction(
+        &self,
+        signature: &Signature,
+    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta>;
     fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account>;
 }
 
@@ -109,10 +120,7 @@ impl Clone for LightweightSolanaClient {
         }
     }
 
-    fn clone_from(&mut self, source: &Self)
-    where
-        Self: ~const std::marker::Destruct,
-    {
+    fn clone_from(&mut self, source: &Self) {
         self.client = source.client.clone();
         self.rent = source.rent.clone();
         self.payer = clone_keypair(&source.payer);
@@ -147,6 +155,14 @@ impl LightweightSolanaClient {
             rent,
             payer: clone_keypair(payer),
         })
+    }
+
+    pub async fn get_transaction(
+        &self,
+        signature: &Signature,
+    ) -> LightweightClientResult<ParsedTransaction> {
+        let encoded_tx = self.client.fetch_transaction(signature).await?;
+        Ok(parse_transaction(encoded_tx))
     }
 
     pub async fn sign_send_instructions_with_payer(
@@ -193,6 +209,10 @@ impl LightweightSolanaClient {
     pub async fn get_account(&self, key: Pubkey) -> LightweightClientResult<Account> {
         self.client.fetch_account(key).await
     }
+
+    pub async fn get_account_data(&self, key: Pubkey) -> LightweightClientResult<Vec<u8>> {
+        Ok(self.get_account(key).await?.data)
+    }
 }
 
 #[async_trait]
@@ -208,6 +228,26 @@ impl ClientSubset for Arc<RpcClient> {
         tokio::task::spawn_blocking(move || {
             let signers = signers_owned.iter().collect();
             (*client).process_transaction(tx, &signers)
+        })
+        .await
+        .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+        .and_then(|e| e)
+    }
+
+    async fn fetch_transaction(
+        &self,
+        signature: &Signature,
+    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta> {
+        let client = self.clone();
+        let s = signature.clone();
+        tokio::task::spawn_blocking(move || {
+            (*client)
+                .get_transaction(&s, UiTransactionEncoding::JsonParsed)
+                .map_err(|_| {
+                    LightweightClientError::from(anyhow::Error::msg(format!(
+                        "Failed to fetch transaction",
+                    )))
+                })
         })
         .await
         .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
@@ -252,6 +292,19 @@ impl ClientSubsetSync for RpcClient {
         Ok(tx.signatures[0])
     }
 
+    fn fetch_transaction(
+        &self,
+        signature: &Signature,
+    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta> {
+        self.get_transaction(&signature, UiTransactionEncoding::JsonParsed)
+            .map_err(|_| {
+                LightweightClientError::from(anyhow::Error::msg(format!(
+                    "Failed to fetch transaction {}",
+                    signature.to_string()
+                )))
+            })
+    }
+
     fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError> {
         Ok(self
             .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
@@ -282,6 +335,14 @@ impl ClientSubset for RwLock<BanksClient> {
         Ok(sig)
     }
 
+    /// This is not supported by BanksClient
+    async fn fetch_transaction(
+        &self,
+        _signature: &Signature,
+    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta> {
+        Err(LightweightClientError::TransactionFailed)
+    }
+
     async fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError> {
         self.write()
             .await
@@ -301,5 +362,3 @@ impl ClientSubset for RwLock<BanksClient> {
             .ok_or(anyhow!("Failed to get account").into())
     }
 }
-
-///////////// Non-interesting impls  ////////////////////
