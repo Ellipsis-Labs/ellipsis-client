@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
 use itertools::Itertools;
+use solana_client::rpc_config::RpcTransactionConfig;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_program::{
     hash::Hash, instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, rent::Rent,
@@ -226,7 +227,14 @@ impl ClientSubset for Arc<RpcClient> {
         let s = signature.clone();
         tokio::task::spawn_blocking(move || {
             (*client)
-                .get_transaction(&s, UiTransactionEncoding::JsonParsed)
+                .get_transaction_with_config(
+                    &s,
+                    RpcTransactionConfig {
+                        encoding: Some(UiTransactionEncoding::Json),
+                        commitment: Some(CommitmentConfig::confirmed()),
+                        max_supported_transaction_version: None,
+                    },
+                )
                 .map_err(|_| {
                     EllipsisClientError::from(anyhow::Error::msg(format!(
                         "Failed to fetch transaction",
