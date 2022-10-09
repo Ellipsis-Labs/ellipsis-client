@@ -3,12 +3,7 @@ use async_trait::async_trait;
 use itertools::Itertools;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_program::{
-    hash::Hash,
-    instruction::Instruction,
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    rent::Rent,
-    sysvar::{self},
+    hash::Hash, instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, rent::Rent,
 };
 use solana_program_test::BanksClient;
 use solana_program_test::BanksClientError;
@@ -107,7 +102,6 @@ pub trait ClientSubsetSync {
 
 pub struct EllipsisClient {
     pub client: Arc<dyn ClientSubset + 'static + Sync + Send>,
-    pub rent: Rent,
     pub payer: Keypair,
 }
 
@@ -115,14 +109,12 @@ impl Clone for EllipsisClient {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
-            rent: self.rent.clone(),
             payer: clone_keypair(&self.payer),
         }
     }
 
     fn clone_from(&mut self, source: &Self) {
         self.client = source.client.clone();
-        self.rent = source.rent.clone();
         self.payer = clone_keypair(&source.payer);
     }
 }
@@ -132,10 +124,8 @@ impl EllipsisClient {
         client: &BanksClient,
         payer: &Keypair,
     ) -> std::result::Result<Self, EllipsisClientError> {
-        let mut client = client.clone();
-        let rent = client.get_rent().await?;
+        let client = client.clone();
         Ok(Self {
-            rent,
             client: Arc::new(RwLock::new(client)),
             payer: clone_keypair(payer),
         })
@@ -145,14 +135,8 @@ impl EllipsisClient {
         rpc: RpcClient,
         payer: &Keypair,
     ) -> std::result::Result<Self, EllipsisClientError> {
-        let rent_account = rpc
-            .get_account_with_commitment(&sysvar::rent::id(), CommitmentConfig::confirmed())?
-            .value
-            .ok_or(anyhow!("Failed to fetch rent sysvar"))?;
-        let rent = bincode::deserialize(&*rent_account.data).map_err(|e| anyhow::Error::from(e))?;
         Ok(Self {
             client: Arc::new(Arc::new(rpc)),
-            rent,
             payer: clone_keypair(payer),
         })
     }
@@ -203,7 +187,7 @@ impl EllipsisClient {
     }
 
     pub fn rent_exempt(&self, size: usize) -> u64 {
-        self.rent.minimum_balance(size) as u64
+        Rent::default().minimum_balance(size) as u64
     }
 
     pub async fn get_account(&self, key: Pubkey) -> EllipsisClientResult<Account> {
