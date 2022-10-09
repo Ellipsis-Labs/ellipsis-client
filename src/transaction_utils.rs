@@ -1,7 +1,7 @@
 use solana_program::clock::UnixTimestamp;
 use solana_transaction_status::{
-    EncodedConfirmedTransactionWithStatusMeta, EncodedTransaction, UiCompiledInstruction,
-    UiInstruction, UiMessage, UiParsedInstruction,
+    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
+    EncodedTransaction, UiCompiledInstruction, UiInstruction, UiMessage, UiParsedInstruction,
 };
 
 #[derive(Clone)]
@@ -89,22 +89,25 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
         ),
     };
     let tx_meta = tx.transaction.meta.unwrap();
-    let logs = tx_meta.log_messages.unwrap_or(vec![]);
-    let inner_instructions = tx_meta
-        .inner_instructions
-        .unwrap_or(vec![])
-        .iter()
-        .map(|ii| {
-            ii.instructions
-                .iter()
-                .map(|i| ParsedInnerInstruction {
-                    parent_index: ii.index as usize,
-                    instruction: parse_ui_instruction(i, &keys),
-                })
-                .collect::<Vec<ParsedInnerInstruction>>()
-        })
-        .collect::<Vec<Vec<ParsedInnerInstruction>>>();
-
+    let logs = match tx_meta.log_messages {
+        OptionSerializer::Some(l) => l,
+        _ => vec![],
+    };
+    let inner_instructions = match tx_meta.inner_instructions {
+        OptionSerializer::Some(inner) => inner
+            .iter()
+            .map(|ii| {
+                ii.instructions
+                    .iter()
+                    .map(|i| ParsedInnerInstruction {
+                        parent_index: ii.index as usize,
+                        instruction: parse_ui_instruction(i, &keys),
+                    })
+                    .collect::<Vec<ParsedInnerInstruction>>()
+            })
+            .collect::<Vec<Vec<ParsedInnerInstruction>>>(),
+        _ => vec![],
+    };
     ParsedTransaction {
         slot,
         block_time,
