@@ -4,7 +4,7 @@ use solana_transaction_status::{
     EncodedTransaction, UiCompiledInstruction, UiInstruction, UiMessage, UiParsedInstruction,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ParsedTransaction {
     pub slot: u64,
     pub block_time: Option<UnixTimestamp>,
@@ -13,14 +13,14 @@ pub struct ParsedTransaction {
     pub logs: Vec<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ParsedInstruction {
     pub program_id: String,
     pub accounts: Vec<String>,
     pub data: Vec<u8>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ParsedInnerInstruction {
     pub parent_index: usize,
     pub instruction: ParsedInstruction,
