@@ -28,10 +28,10 @@ use transaction_utils::{parse_transaction, ParsedTransaction};
 
 pub mod transaction_utils;
 
-pub type LightweightClientResult<T = ()> = std::result::Result<T, LightweightClientError>;
+pub type EllipsisClientResult<T = ()> = std::result::Result<T, EllipsisClientError>;
 
 #[derive(Error, Debug)]
-pub enum LightweightClientError {
+pub enum EllipsisClientError {
     #[error("Public keys expected to match but do not")]
     PublicKeyMismatch,
     #[error("Action requires admin key")]
@@ -48,27 +48,27 @@ pub enum LightweightClientError {
     ProgramError(#[from] ProgramError),
 }
 
-impl From<Box<dyn std::error::Error>> for LightweightClientError {
+impl From<Box<dyn std::error::Error>> for EllipsisClientError {
     fn from(e: Box<dyn std::error::Error>) -> Self {
-        LightweightClientError::Other(anyhow::Error::msg(e.to_string()))
+        EllipsisClientError::Other(anyhow::Error::msg(e.to_string()))
     }
 }
 
-impl<T> From<PoisonError<T>> for LightweightClientError {
+impl<T> From<PoisonError<T>> for EllipsisClientError {
     fn from(e: PoisonError<T>) -> Self {
-        LightweightClientError::Other(anyhow::Error::msg(e.to_string()))
+        EllipsisClientError::Other(anyhow::Error::msg(e.to_string()))
     }
 }
 
-impl From<BanksClientError> for LightweightClientError {
+impl From<BanksClientError> for EllipsisClientError {
     fn from(e: BanksClientError) -> Self {
-        LightweightClientError::Other(anyhow::Error::msg(e.to_string()))
+        EllipsisClientError::Other(anyhow::Error::msg(e.to_string()))
     }
 }
 
-impl From<std::io::Error> for LightweightClientError {
+impl From<std::io::Error> for EllipsisClientError {
     fn from(e: std::io::Error) -> Self {
-        LightweightClientError::TransportError(TransportError::from(e))
+        EllipsisClientError::TransportError(TransportError::from(e))
     }
 }
 
@@ -82,13 +82,13 @@ pub trait ClientSubset {
         &self,
         mut tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult<Signature>;
-    async fn fetch_latest_blockhash(&self) -> LightweightClientResult<Hash>;
+    ) -> EllipsisClientResult<Signature>;
+    async fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash>;
     async fn fetch_transaction(
         &self,
         signature: &Signature,
-    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta>;
-    async fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account>;
+    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta>;
+    async fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account>;
 }
 
 pub trait ClientSubsetSync {
@@ -96,22 +96,22 @@ pub trait ClientSubsetSync {
         &self,
         tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult<Signature>;
-    fn fetch_latest_blockhash(&self) -> LightweightClientResult<Hash>;
+    ) -> EllipsisClientResult<Signature>;
+    fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash>;
     fn fetch_transaction(
         &self,
         signature: &Signature,
-    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta>;
-    fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account>;
+    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta>;
+    fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account>;
 }
 
-pub struct LightweightSolanaClient {
+pub struct EllipsisClient {
     pub client: Arc<dyn ClientSubset + 'static + Sync + Send>,
     pub rent: Rent,
     pub payer: Keypair,
 }
 
-impl Clone for LightweightSolanaClient {
+impl Clone for EllipsisClient {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -127,11 +127,11 @@ impl Clone for LightweightSolanaClient {
     }
 }
 
-impl LightweightSolanaClient {
+impl EllipsisClient {
     pub async fn from_banks(
         client: &BanksClient,
         payer: &Keypair,
-    ) -> std::result::Result<Self, LightweightClientError> {
+    ) -> std::result::Result<Self, EllipsisClientError> {
         let mut client = client.clone();
         let rent = client.get_rent().await?;
         Ok(Self {
@@ -144,7 +144,7 @@ impl LightweightSolanaClient {
     pub fn from_rpc(
         rpc: RpcClient,
         payer: &Keypair,
-    ) -> std::result::Result<Self, LightweightClientError> {
+    ) -> std::result::Result<Self, EllipsisClientError> {
         let rent_account = rpc
             .get_account_with_commitment(&sysvar::rent::id(), CommitmentConfig::confirmed())?
             .value
@@ -160,7 +160,7 @@ impl LightweightSolanaClient {
     pub async fn get_transaction(
         &self,
         signature: &Signature,
-    ) -> LightweightClientResult<ParsedTransaction> {
+    ) -> EllipsisClientResult<ParsedTransaction> {
         let encoded_tx = self.client.fetch_transaction(signature).await?;
         Ok(parse_transaction(encoded_tx))
     }
@@ -169,7 +169,7 @@ impl LightweightSolanaClient {
         &self,
         instructions: Vec<Instruction>,
         mut signers: Vec<&Keypair>, // todo: use slice
-    ) -> LightweightClientResult<Signature> {
+    ) -> EllipsisClientResult<Signature> {
         signers.insert(0, &self.payer);
         self.client
             .process_transaction(
@@ -183,7 +183,7 @@ impl LightweightSolanaClient {
         &self,
         instructions: Vec<Instruction>,
         mut signers: Vec<&Keypair>, // todo: use slice
-    ) -> LightweightClientResult<Signature> {
+    ) -> EllipsisClientResult<Signature> {
         let payer = if signers.len() > 0 {
             signers[0].pubkey()
         } else {
@@ -198,7 +198,7 @@ impl LightweightSolanaClient {
             .await
     }
 
-    pub async fn get_latest_blockhash(&self) -> LightweightClientResult<Hash> {
+    pub async fn get_latest_blockhash(&self) -> EllipsisClientResult<Hash> {
         self.client.fetch_latest_blockhash().await
     }
 
@@ -206,11 +206,11 @@ impl LightweightSolanaClient {
         self.rent.minimum_balance(size) as u64
     }
 
-    pub async fn get_account(&self, key: Pubkey) -> LightweightClientResult<Account> {
+    pub async fn get_account(&self, key: Pubkey) -> EllipsisClientResult<Account> {
         self.client.fetch_account(key).await
     }
 
-    pub async fn get_account_data(&self, key: Pubkey) -> LightweightClientResult<Vec<u8>> {
+    pub async fn get_account_data(&self, key: Pubkey) -> EllipsisClientResult<Vec<u8>> {
         Ok(self.get_account(key).await?.data)
     }
 }
@@ -221,7 +221,7 @@ impl ClientSubset for Arc<RpcClient> {
         &self,
         tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult<Signature> {
+    ) -> EllipsisClientResult<Signature> {
         let client = self.clone();
         let signers_owned = signers.into_iter().map(|&i| clone_keypair(i)).collect_vec();
 
@@ -230,43 +230,43 @@ impl ClientSubset for Arc<RpcClient> {
             (*client).process_transaction(tx, &signers)
         })
         .await
-        .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+        .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
         .and_then(|e| e)
     }
 
     async fn fetch_transaction(
         &self,
         signature: &Signature,
-    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta> {
+    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
         let client = self.clone();
         let s = signature.clone();
         tokio::task::spawn_blocking(move || {
             (*client)
                 .get_transaction(&s, UiTransactionEncoding::JsonParsed)
                 .map_err(|_| {
-                    LightweightClientError::from(anyhow::Error::msg(format!(
+                    EllipsisClientError::from(anyhow::Error::msg(format!(
                         "Failed to fetch transaction",
                     )))
                 })
         })
         .await
-        .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+        .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
         .and_then(|e| e)
     }
 
-    async fn fetch_latest_blockhash(&self) -> LightweightClientResult<Hash> {
+    async fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash> {
         let client = self.clone();
         tokio::task::spawn_blocking(move || (*client).fetch_latest_blockhash())
             .await
-            .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+            .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
             .and_then(|e| e)
     }
 
-    async fn fetch_account(&self, key: Pubkey) -> LightweightClientResult<Account> {
+    async fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account> {
         let client = self.clone();
         tokio::task::spawn_blocking(move || (*client).fetch_account(key))
             .await
-            .map_err(|e| LightweightClientError::Other(anyhow::Error::msg(e.to_string())))
+            .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
             .and_then(|e| e)
     }
 }
@@ -276,7 +276,7 @@ impl ClientSubsetSync for RpcClient {
         &self,
         mut tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult<Signature> {
+    ) -> EllipsisClientResult<Signature> {
         tx.partial_sign(signers, self.get_latest_blockhash()?);
         self.send_and_confirm_transaction_with_spinner_and_config(
             &tx,
@@ -295,23 +295,23 @@ impl ClientSubsetSync for RpcClient {
     fn fetch_transaction(
         &self,
         signature: &Signature,
-    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta> {
+    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
         self.get_transaction(&signature, UiTransactionEncoding::JsonParsed)
             .map_err(|_| {
-                LightweightClientError::from(anyhow::Error::msg(format!(
+                EllipsisClientError::from(anyhow::Error::msg(format!(
                     "Failed to fetch transaction {}",
                     signature.to_string()
                 )))
             })
     }
 
-    fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError> {
+    fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {
         Ok(self
             .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
             .map(|(hash, _)| hash)?)
     }
 
-    fn fetch_account(&self, key: Pubkey) -> std::result::Result<Account, LightweightClientError> {
+    fn fetch_account(&self, key: Pubkey) -> std::result::Result<Account, EllipsisClientError> {
         Ok(self
             .get_account_with_commitment(&key, CommitmentConfig::processed())?
             .value
@@ -325,7 +325,7 @@ impl ClientSubset for RwLock<BanksClient> {
         &self,
         mut tx: Transaction,
         signers: &Vec<&Keypair>,
-    ) -> LightweightClientResult<Signature> {
+    ) -> EllipsisClientResult<Signature> {
         tx.partial_sign(signers, self.fetch_latest_blockhash().await?);
         let sig = tx.signatures[0];
         self.write()
@@ -339,22 +339,22 @@ impl ClientSubset for RwLock<BanksClient> {
     async fn fetch_transaction(
         &self,
         _signature: &Signature,
-    ) -> LightweightClientResult<EncodedConfirmedTransactionWithStatusMeta> {
-        Err(LightweightClientError::TransactionFailed)
+    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
+        Err(EllipsisClientError::TransactionFailed)
     }
 
-    async fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, LightweightClientError> {
+    async fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {
         self.write()
             .await
             .get_latest_blockhash()
             .await
-            .map_err(LightweightClientError::from)
+            .map_err(EllipsisClientError::from)
     }
 
     async fn fetch_account(
         &self,
         key: Pubkey,
-    ) -> std::result::Result<Account, LightweightClientError> {
+    ) -> std::result::Result<Account, EllipsisClientError> {
         self.write()
             .await
             .get_account_with_commitment(key, CommitmentLevel::Confirmed)
