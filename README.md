@@ -1,5 +1,7 @@
-# Lightweight Solana Client
+# Ellipsis Client
 
 Lightweight unifying client for RPC + BanksClient
 
-There are no good unifying traits for Solana rust clients. That makes reusing code between tests and applications painful. This makes it slightly better.
+There are no good unifying traits for Solana Rust clients. `EllipsisClient` creates a simple interface for sending transactions, reading data, and fetching transaction data. The ulitmate goal is to encourage as much reusable code as possible among both client apps as testing logic.
+
+This software is still a work in progress.
