@@ -169,7 +169,7 @@ impl EllipsisClient {
         instructions: Vec<Instruction>,
         mut signers: Vec<&Keypair>, // todo: use slice
     ) -> EllipsisClientResult<Signature> {
-        let payer = if signers.len() > 0 {
+        let payer = if !signers.is_empty() {
             signers[0].pubkey()
         } else {
             signers.insert(0, &self.payer);
@@ -191,11 +191,11 @@ impl EllipsisClient {
         Rent::default().minimum_balance(size) as u64
     }
 
-    pub async fn get_account(&self, key: Pubkey) -> EllipsisClientResult<Account> {
-        self.client.fetch_account(key).await
+    pub async fn get_account(&self, key: &Pubkey) -> EllipsisClientResult<Account> {
+        self.client.fetch_account(*key).await
     }
 
-    pub async fn get_account_data(&self, key: Pubkey) -> EllipsisClientResult<Vec<u8>> {
+    pub async fn get_account_data(&self, key: &Pubkey) -> EllipsisClientResult<Vec<u8>> {
         Ok(self.get_account(key).await?.data)
     }
 }
@@ -208,7 +208,7 @@ impl ClientSubset for Arc<RpcClient> {
         signers: &Vec<&Keypair>,
     ) -> EllipsisClientResult<Signature> {
         let client = self.clone();
-        let signers_owned = signers.into_iter().map(|&i| clone_keypair(i)).collect_vec();
+        let signers_owned = signers.iter().map(|&i| clone_keypair(i)).collect_vec();
 
         tokio::task::spawn_blocking(move || {
             let signers = signers_owned.iter().collect();
@@ -224,7 +224,7 @@ impl ClientSubset for Arc<RpcClient> {
         signature: &Signature,
     ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
         let client = self.clone();
-        let s = signature.clone();
+        let s = *signature;
         tokio::task::spawn_blocking(move || {
             (*client)
                 .get_transaction_with_config(
@@ -236,9 +236,9 @@ impl ClientSubset for Arc<RpcClient> {
                     },
                 )
                 .map_err(|_| {
-                    EllipsisClientError::from(anyhow::Error::msg(format!(
-                        "Failed to fetch transaction",
-                    )))
+                    EllipsisClientError::from(anyhow::Error::msg(
+                        "Failed to fetch transaction".to_string(),
+                    ))
                 })
         })
         .await
@@ -288,11 +288,11 @@ impl ClientSubsetSync for RpcClient {
         &self,
         signature: &Signature,
     ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
-        self.get_transaction(&signature, UiTransactionEncoding::JsonParsed)
+        self.get_transaction(signature, UiTransactionEncoding::JsonParsed)
             .map_err(|_| {
                 EllipsisClientError::from(anyhow::Error::msg(format!(
                     "Failed to fetch transaction {}",
-                    signature.to_string()
+                    signature
                 )))
             })
     }
