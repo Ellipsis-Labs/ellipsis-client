@@ -87,7 +87,7 @@ pub trait ClientSubset {
     async fn process_transaction(
         &self,
         mut tx: Transaction,
-        signers: &Vec<&Keypair>,
+        signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature>;
     async fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash>;
     async fn fetch_transaction(
@@ -101,7 +101,7 @@ pub trait ClientSubsetSync {
     fn process_transaction(
         &self,
         tx: Transaction,
-        signers: &Vec<&Keypair>,
+        signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature>;
     fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash>;
     fn fetch_transaction(
@@ -135,7 +135,7 @@ impl Clone for EllipsisClient {
             is_bank_client: self.is_bank_client,
             rpc_client: self.rpc_client.clone(),
             payer: clone_keypair(&self.payer),
-            keys: self.keys.iter().map(|p| clone_keypair(&p)).collect(),
+            keys: self.keys.iter().map(clone_keypair).collect(),
             timeout_ms: self.timeout_ms,
         }
     }
@@ -145,7 +145,7 @@ impl Clone for EllipsisClient {
         self.is_bank_client = source.is_bank_client;
         self.rpc_client = source.rpc_client.clone();
         self.payer = clone_keypair(&source.payer);
-        self.keys = self.keys.iter().map(|p| clone_keypair(&p)).collect();
+        self.keys = self.keys.iter().map(clone_keypair).collect();
         self.timeout_ms = source.timeout_ms;
     }
 }
@@ -245,13 +245,12 @@ impl EllipsisClient {
     ) -> EllipsisClientResult<Signature> {
         let required_signers = instructions
             .iter()
-            .map(|i| {
+            .flat_map(|i| {
                 i.accounts
                     .iter()
                     .filter_map(|am| if am.is_signer { Some(am.pubkey) } else { None })
                     .collect::<Vec<Pubkey>>()
             })
-            .flatten()
             .unique()
             .collect::<Vec<Pubkey>>();
 
@@ -295,7 +294,9 @@ impl EllipsisClient {
                 ),
             )
             .await
-            .unwrap_or_else(|_| Err(EllipsisClientError::TransactionTimeout { elapsed_ms: ms }))
+            .unwrap_or(Err(EllipsisClientError::TransactionTimeout {
+                elapsed_ms: ms,
+            }))
         } else {
             self.client
                 .process_transaction(
@@ -338,15 +339,16 @@ impl ClientSubset for Arc<RpcClient> {
     async fn process_transaction(
         &self,
         tx: Transaction,
-        signers: &Vec<&Keypair>,
+        signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature> {
         let client = self.clone();
         let signers_owned = signers.iter().map(|&i| clone_keypair(i)).collect_vec();
         let signature = tx.signatures[0];
 
         tokio::task::spawn_blocking(move || {
-            let signers = signers_owned.iter().collect();
-            (*client).process_transaction(tx, &signers)
+            let keys = signers_owned.iter().collect::<Vec<&Keypair>>();
+            let signers = keys.as_ref();
+            (*client).process_transaction(tx, signers)
         })
         .await
         .map_err(|_| {
@@ -414,9 +416,9 @@ impl ClientSubsetSync for RpcClient {
     fn process_transaction(
         &self,
         mut tx: Transaction,
-        signers: &Vec<&Keypair>,
+        signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature> {
-        tx.partial_sign(signers, self.get_latest_blockhash()?);
+        tx.partial_sign(&signers.to_vec(), self.get_latest_blockhash()?);
         let signature = tx.signatures[0];
         self.send_and_confirm_transaction_with_spinner_and_config(
             &tx,
@@ -471,7 +473,7 @@ impl ClientSubsetSync for RpcClient {
         Ok(self
             .get_account_with_commitment(&key, CommitmentConfig::processed())?
             .value
-            .ok_or(anyhow!("Failed to get account"))?)
+            .ok_or_else(|| anyhow!("Failed to get account"))?)
     }
 }
 
@@ -480,9 +482,9 @@ impl ClientSubset for RwLock<BanksClient> {
     async fn process_transaction(
         &self,
         mut tx: Transaction,
-        signers: &Vec<&Keypair>,
+        signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature> {
-        tx.partial_sign(signers, self.fetch_latest_blockhash().await?);
+        tx.partial_sign(&signers.to_vec(), self.fetch_latest_blockhash().await?);
         let sig = tx.signatures[0];
         self.write()
             .await
@@ -515,6 +517,6 @@ impl ClientSubset for RwLock<BanksClient> {
             .await
             .get_account_with_commitment(key, CommitmentLevel::Confirmed)
             .await?
-            .ok_or(anyhow!("Failed to get account").into())
+            .ok_or_else(|| anyhow!("Failed to get account").into())
     }
 }
