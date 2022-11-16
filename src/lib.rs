@@ -434,10 +434,12 @@ impl ClientSubsetSync for RpcClient {
                 match self.get_transaction(&signature, UiTransactionEncoding::JsonParsed) {
                     Ok(tx) => tx,
                     Err(e) => {
+                        // This is most likely an RPC issue
+                        // TODO: implmement retry/backoff logic
                         return EllipsisClientError::from(anyhow::Error::msg(format!(
                             "Failed to fetch transaction ({}): {}",
                             signature, e
-                        )))
+                        )));
                     }
                 };
             let logs = parse_transaction(encoded_tx).logs;
