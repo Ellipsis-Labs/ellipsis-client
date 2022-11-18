@@ -197,9 +197,12 @@ impl EllipsisClient {
         })
     }
 
-    pub fn set_payer(&mut self, payer_key: &Pubkey) {
+    pub fn set_payer(&mut self, payer_key: &Pubkey) -> EllipsisClientResult<()> {
         if let Some(payer) = self.keys.iter().find(|key| key.pubkey() == *payer_key) {
             self.payer = clone_keypair(payer);
+            Ok(())
+        } else {
+            Err(EllipsisClientError::MissingSigner { signer: *payer_key })
         }
     }
 
