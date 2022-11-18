@@ -245,6 +245,14 @@ impl EllipsisClient {
         self.send_sign_instructions_with_timeout(instructions, signers, Some(self.timeout_ms))
             .await
     }
+    pub async fn sign_send_instructions_no_timeout(
+        &self,
+        instructions: Vec<Instruction>,
+        signers: Vec<&Keypair>,
+    ) -> EllipsisClientResult<Signature> {
+        self.send_sign_instructions_with_timeout(instructions, signers, None)
+            .await
+    }
 
     pub async fn send_sign_instructions_with_timeout(
         &self,
@@ -286,6 +294,12 @@ impl EllipsisClient {
                 }
             }
         }
+
+        println!("num signers: {}", signers.len());
+        println!(
+            "signers: {:?}",
+            signers.iter().map(|k| k.pubkey()).collect::<Vec<Pubkey>>()
+        );
 
         let payer = if !signers.is_empty() {
             signers[0].pubkey()
