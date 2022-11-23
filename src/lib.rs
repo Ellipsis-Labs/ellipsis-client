@@ -230,7 +230,7 @@ impl EllipsisClient {
     pub async fn sign_send_instructions_with_payer(
         &self,
         instructions: Vec<Instruction>,
-        mut signers: Vec<&Keypair>, // todo: use slice
+        mut signers: Vec<&Keypair>,
     ) -> EllipsisClientResult<Signature> {
         signers.insert(0, &self.payer);
         self.send_sign_instructions_with_timeout(instructions, signers, Some(self.timeout_ms))
@@ -287,9 +287,9 @@ impl EllipsisClient {
             }
         }
 
-        let payer = if !signers.is_empty() {
-            signers[0].pubkey()
-        } else {
+        // Ensure that the payer is always the first signer
+        let payer = {
+            signers.retain(|k| k.pubkey() != self.payer.pubkey());
             signers.insert(0, &self.payer);
             self.payer.pubkey()
         };
@@ -352,7 +352,6 @@ impl ClientSubset for Arc<RpcClient> {
     ) -> EllipsisClientResult<Signature> {
         let client = self.clone();
         let signers_owned = signers.iter().map(|&i| clone_keypair(i)).collect_vec();
-        let signature = tx.signatures[0];
 
         tokio::task::spawn_blocking(move || {
             let keys = signers_owned.iter().collect::<Vec<&Keypair>>();
@@ -360,20 +359,7 @@ impl ClientSubset for Arc<RpcClient> {
             (*client).process_transaction(tx, signers)
         })
         .await
-        .map_err(|_| {
-            let encoded_tx =
-                match self.get_transaction(&signature, UiTransactionEncoding::JsonParsed) {
-                    Ok(tx) => tx,
-                    Err(e) => {
-                        return EllipsisClientError::from(anyhow::Error::msg(format!(
-                            "Failed to fetch transaction ({}): {}",
-                            signature, e
-                        )))
-                    }
-                };
-            let logs = parse_transaction(encoded_tx).logs;
-            EllipsisClientError::TransactionFailed { signature, logs }
-        })
+        .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
         .and_then(|e| e)
     }
 
@@ -441,18 +427,24 @@ impl ClientSubsetSync for RpcClient {
             },
         )
         .map_err(|_| {
-            let encoded_tx =
-                match self.get_transaction(&signature, UiTransactionEncoding::JsonParsed) {
-                    Ok(tx) => tx,
-                    Err(e) => {
-                        // This is most likely an RPC issue
-                        // TODO: implmement retry/backoff logic
-                        return EllipsisClientError::from(anyhow::Error::msg(format!(
-                            "Failed to fetch transaction ({}): {}",
-                            signature, e
-                        )));
-                    }
-                };
+            let encoded_tx = match self.get_transaction_with_config(
+                &signature,
+                RpcTransactionConfig {
+                    encoding: Some(UiTransactionEncoding::JsonParsed),
+                    commitment: Some(CommitmentConfig::confirmed()),
+                    max_supported_transaction_version: None,
+                },
+            ) {
+                Ok(tx) => tx,
+                Err(e) => {
+                    // This is most likely an RPC issue
+                    // TODO: implmement retry/backoff logic
+                    return EllipsisClientError::from(anyhow::Error::msg(format!(
+                        "Failed to fetch transaction ({}): {}",
+                        signature, e
+                    )));
+                }
+            };
             let logs = parse_transaction(encoded_tx).logs;
             EllipsisClientError::TransactionFailed { signature, logs }
         })?;
@@ -463,13 +455,20 @@ impl ClientSubsetSync for RpcClient {
         &self,
         signature: &Signature,
     ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
-        self.get_transaction(signature, UiTransactionEncoding::JsonParsed)
-            .map_err(|_| {
-                EllipsisClientError::from(anyhow::Error::msg(format!(
-                    "Failed to fetch transaction {}",
-                    signature
-                )))
-            })
+        self.get_transaction_with_config(
+            signature,
+            RpcTransactionConfig {
+                encoding: Some(UiTransactionEncoding::JsonParsed),
+                commitment: Some(CommitmentConfig::confirmed()),
+                max_supported_transaction_version: None,
+            },
+        )
+        .map_err(|_| {
+            EllipsisClientError::from(anyhow::Error::msg(format!(
+                "Failed to fetch transaction {}",
+                signature
+            )))
+        })
     }
 
     fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {
