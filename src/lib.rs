@@ -6,8 +6,6 @@ use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig}
 use solana_program::{
     hash::Hash, instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, rent::Rent,
 };
-use solana_program_test::BanksClient;
-use solana_program_test::BanksClientError;
 use solana_sdk::{
     account::Account,
     commitment_config::{CommitmentConfig, CommitmentLevel},
@@ -16,7 +14,9 @@ use solana_sdk::{
     transaction::Transaction,
     transport::TransportError,
 };
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
+use solana_test_client::banks_client::BanksClient;
+use solana_test_client::banks_client::BanksClientError;
+use solana_transaction_status::UiTransactionEncoding;
 use std::collections::{HashMap, HashSet};
 use std::{
     ops::Deref,
@@ -25,7 +25,9 @@ use std::{
 };
 use thiserror::Error;
 use tokio::{sync::RwLock, time::timeout};
-use transaction_utils::{parse_transaction, ParsedTransaction};
+use transaction_utils::{
+    parse_transaction, ParsedInnerInstruction, ParsedInstruction, ParsedTransaction,
+};
 
 pub mod transaction_utils;
 
@@ -93,7 +95,7 @@ pub trait ClientSubset {
     async fn fetch_transaction(
         &self,
         signature: &Signature,
-    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta>;
+    ) -> EllipsisClientResult<ParsedTransaction>;
     async fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account>;
 }
 
@@ -104,10 +106,7 @@ pub trait ClientSubsetSync {
         signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature>;
     fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash>;
-    fn fetch_transaction(
-        &self,
-        signature: &Signature,
-    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta>;
+    fn fetch_transaction(&self, signature: &Signature) -> EllipsisClientResult<ParsedTransaction>;
     fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account>;
 }
 
@@ -223,8 +222,7 @@ impl EllipsisClient {
         &self,
         signature: &Signature,
     ) -> EllipsisClientResult<ParsedTransaction> {
-        let encoded_tx = self.client.fetch_transaction(signature).await?;
-        Ok(parse_transaction(encoded_tx))
+        self.client.fetch_transaction(signature).await
     }
 
     pub async fn sign_send_instructions_with_payer(
@@ -366,7 +364,7 @@ impl ClientSubset for Arc<RpcClient> {
     async fn fetch_transaction(
         &self,
         signature: &Signature,
-    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
+    ) -> EllipsisClientResult<ParsedTransaction> {
         let client = self.clone();
         let s = *signature;
         tokio::task::spawn_blocking(move || {
@@ -388,6 +386,7 @@ impl ClientSubset for Arc<RpcClient> {
         .await
         .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
         .and_then(|e| e)
+        .map(parse_transaction)
     }
 
     async fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash> {
@@ -451,10 +450,7 @@ impl ClientSubsetSync for RpcClient {
         Ok(signature)
     }
 
-    fn fetch_transaction(
-        &self,
-        signature: &Signature,
-    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
+    fn fetch_transaction(&self, signature: &Signature) -> EllipsisClientResult<ParsedTransaction> {
         self.get_transaction_with_config(
             signature,
             RpcTransactionConfig {
@@ -469,6 +465,7 @@ impl ClientSubsetSync for RpcClient {
                 signature
             )))
         })
+        .map(parse_transaction)
     }
 
     fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {
@@ -504,9 +501,54 @@ impl ClientSubset for RwLock<BanksClient> {
     /// This is not supported by BanksClient
     async fn fetch_transaction(
         &self,
-        _signature: &Signature,
-    ) -> EllipsisClientResult<EncodedConfirmedTransactionWithStatusMeta> {
-        Err(EllipsisClientError::UnsupportedAction)
+        signature: &Signature,
+    ) -> EllipsisClientResult<ParsedTransaction> {
+        self.write()
+            .await
+            .get_transaction(*signature)
+            .await
+            .map_err(|e| {
+                EllipsisClientError::from(anyhow::Error::msg(format!(
+                    "Failed to fetch transaction {}: {}",
+                    signature, e
+                )))
+            })
+            .and_then(|tx| {
+                tx.map(|parsed_transaction| ParsedTransaction {
+                    slot: 0,
+                    block_time: None,
+                    instructions: parsed_transaction
+                        .instructions
+                        .iter()
+                        .map(|i| ParsedInstruction {
+                            program_id: i.program_id.clone(),
+                            accounts: i.accounts.clone(),
+                            data: i.data.clone(),
+                        })
+                        .collect(),
+                    inner_instructions: parsed_transaction
+                        .inner_instructions
+                        .iter()
+                        .map(|v| {
+                            v.iter()
+                                .map(|i| ParsedInnerInstruction {
+                                    parent_index: i.parent_index,
+                                    instruction: ParsedInstruction {
+                                        program_id: i.instruction.program_id.clone(),
+                                        accounts: i.instruction.accounts.clone(),
+                                        data: i.instruction.data.clone(),
+                                    },
+                                })
+                                .collect()
+                        })
+                        .collect(),
+                    logs: parsed_transaction.logs,
+                })
+                .ok_or(EllipsisClientError::from(anyhow::Error::msg(format!(
+                    "Failed to fetch transaction {}",
+                    signature
+                ))))
+            })
     }
 
     async fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {

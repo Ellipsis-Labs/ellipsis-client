@@ -13,7 +13,7 @@ bs58 = "0.4.0"
 solana-program = "1.10.32"
 thiserror = "1.0"
 solana-logger = "1.10.32"
-solana-program-test = "1.10.32"
+solana-test-client = { path = "../ellipsis-solana-test-client" } 
 solana-transaction-status = "1.14.5"
 solana-sdk = "1.10.32"
 solana-client = "1.10.32"
