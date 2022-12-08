@@ -1,6 +1,6 @@
 [package]
 name = "ellipsis-client"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 description = "Lightweight interface for interacting with the Solana blockchain"
 license = "MIT OR Apache-2.0"
@@ -10,13 +10,13 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 itertools = "0.10.3"
 bs58 = "0.4.0"
-solana-program = "1.10.32"
 thiserror = "1.0"
-solana-logger = "1.10.32"
-solana-test-client = { path = "../ellipsis-solana-test-client" } 
-solana-transaction-status = "1.14.5"
-solana-sdk = "1.10.32"
-solana-client = "1.10.32"
+solana-program = "=1.14.9"
+solana-logger = "=1.14.9"
+solana-transaction-status = "=1.14.9"
+solana-sdk = "=1.14.9"
+solana-client = "=1.14.9"
+solana-test-client = "0.1.0" 
 async-trait = "0.1.52"
 tokio = { version = "1.6", features = ["macros"] }
 anyhow = "1.0.52"
