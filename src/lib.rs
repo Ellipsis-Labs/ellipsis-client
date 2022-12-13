@@ -500,13 +500,13 @@ impl ClientSubsetSync for RpcClient {
 
     fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {
         Ok(self
-            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+            .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
             .map(|(hash, _)| hash)?)
     }
 
     fn fetch_account(&self, key: Pubkey) -> std::result::Result<Account, EllipsisClientError> {
         Ok(self
-            .get_account_with_commitment(&key, CommitmentConfig::processed())?
+            .get_account_with_commitment(&key, CommitmentConfig::confirmed())?
             .value
             .ok_or_else(|| anyhow!("Failed to get account"))?)
     }
