@@ -453,7 +453,11 @@ impl ClientSubsetSync for RpcClient {
                         return Err(EllipsisClientError::TransactionFailed { signature, logs });
                     } else {
                         retries += 1;
-                        if retries == 5 {
+                        println!(
+                            "Attempt {} failed: Resending transaction ({}). Error: {}",
+                            retries, signature, client_error
+                        );
+                        if retries == 3 {
                             return Err(EllipsisClientError::from(anyhow::Error::msg(format!(
                                 "Failed to send transaction ({}): {}",
                                 signature, client_error
@@ -481,7 +485,7 @@ impl ClientSubsetSync for RpcClient {
                 Ok(res) => break Ok(res),
                 Err(e) => {
                     retries += 1;
-                    if retries == 5 {
+                    if retries == 3 {
                         return Err(EllipsisClientError::from(anyhow::Error::msg(format!(
                             "Failed to fetch transaction ({}): {}",
                             signature, e
