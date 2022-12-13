@@ -1,11 +1,13 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
 use itertools::Itertools;
+use solana_client::client_error::ClientErrorKind;
 use solana_client::rpc_config::RpcTransactionConfig;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_program::{
     hash::Hash, instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, rent::Rent,
 };
+use solana_sdk::example_mocks::solana_client::client_error;
 use solana_sdk::{
     account::Account,
     commitment_config::{CommitmentConfig, CommitmentLevel},
@@ -414,58 +416,82 @@ impl ClientSubsetSync for RpcClient {
     ) -> EllipsisClientResult<Signature> {
         tx.partial_sign(&signers.to_vec(), self.get_latest_blockhash()?);
         let signature = tx.signatures[0];
-        self.send_and_confirm_transaction_with_spinner_and_config(
-            &tx,
-            CommitmentConfig::confirmed(),
-            RpcSendTransactionConfig {
-                min_context_slot: None,
-                skip_preflight: true,
-                preflight_commitment: None,
-                encoding: None,
-                max_retries: None,
-            },
-        )
-        .map_err(|_| {
-            let encoded_tx = match self.get_transaction_with_config(
-                &signature,
+        let mut retries = 0;
+        let signature = loop {
+            match self.send_and_confirm_transaction_with_spinner_and_config(
+                &tx,
+                CommitmentConfig::confirmed(),
+                RpcSendTransactionConfig {
+                    min_context_slot: None,
+                    skip_preflight: true,
+                    preflight_commitment: None,
+                    encoding: None,
+                    max_retries: None,
+                },
+            ) {
+                Ok(sig) => break sig,
+                Err(client_error) => {
+                    if matches!(client_error.kind, ClientErrorKind::TransactionError(_)) {
+                        let encoded_tx = match self.get_transaction_with_config(
+                            &signature,
+                            RpcTransactionConfig {
+                                encoding: Some(UiTransactionEncoding::JsonParsed),
+                                commitment: Some(CommitmentConfig::confirmed()),
+                                max_supported_transaction_version: None,
+                            },
+                        ) {
+                            Ok(tx) => tx,
+                            Err(e) => {
+                                // This is most likely an RPC issue
+                                // TODO: implmement retry/backoff logic
+                                return Err(EllipsisClientError::from(anyhow::Error::msg(
+                                    format!("Failed to fetch transaction ({}): {}", signature, e),
+                                )));
+                            }
+                        };
+                        let logs = parse_transaction(encoded_tx).logs;
+                        return Err(EllipsisClientError::TransactionFailed { signature, logs });
+                    } else {
+                        retries += 1;
+                        if retries == 5 {
+                            return Err(EllipsisClientError::from(anyhow::Error::msg(format!(
+                                "Failed to send transaction ({}): {}",
+                                signature, client_error
+                            ))));
+                        }
+                        continue;
+                    }
+                }
+            }
+        };
+        Ok(signature)
+    }
+
+    fn fetch_transaction(&self, signature: &Signature) -> EllipsisClientResult<ParsedTransaction> {
+        let mut retries = 0;
+        let tx = loop {
+            match self.get_transaction_with_config(
+                signature,
                 RpcTransactionConfig {
                     encoding: Some(UiTransactionEncoding::JsonParsed),
                     commitment: Some(CommitmentConfig::confirmed()),
                     max_supported_transaction_version: None,
                 },
             ) {
-                Ok(tx) => tx,
+                Ok(res) => break Ok(res),
                 Err(e) => {
-                    // This is most likely an RPC issue
-                    // TODO: implmement retry/backoff logic
-                    return EllipsisClientError::from(anyhow::Error::msg(format!(
-                        "Failed to fetch transaction ({}): {}",
-                        signature, e
-                    )));
+                    retries += 1;
+                    if retries == 5 {
+                        return Err(EllipsisClientError::from(anyhow::Error::msg(format!(
+                            "Failed to fetch transaction ({}): {}",
+                            signature, e
+                        ))));
+                    }
+                    continue;
                 }
-            };
-            let logs = parse_transaction(encoded_tx).logs;
-            EllipsisClientError::TransactionFailed { signature, logs }
-        })?;
-        Ok(signature)
-    }
-
-    fn fetch_transaction(&self, signature: &Signature) -> EllipsisClientResult<ParsedTransaction> {
-        self.get_transaction_with_config(
-            signature,
-            RpcTransactionConfig {
-                encoding: Some(UiTransactionEncoding::JsonParsed),
-                commitment: Some(CommitmentConfig::confirmed()),
-                max_supported_transaction_version: None,
-            },
-        )
-        .map_err(|_| {
-            EllipsisClientError::from(anyhow::Error::msg(format!(
-                "Failed to fetch transaction {}",
-                signature
-            )))
-        })
-        .map(parse_transaction)
+            }
+        };
+        tx.map(parse_transaction)
     }
 
     fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {
