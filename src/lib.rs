@@ -456,7 +456,7 @@ impl ClientSubsetSync for RpcClient {
             }
         } else {
             return Err(EllipsisClientError::from(anyhow::Error::msg(format!(
-                "Failed to send and confrim transaction ({})",
+                "Failed to send and confirm transaction ({})",
                 signature
             ))));
         }
