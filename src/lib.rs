@@ -415,7 +415,6 @@ impl ClientSubsetSync for RpcClient {
         mut tx: Transaction,
         signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature> {
-        println!("{:?}", signers.iter().map(|k| k.pubkey()).collect_vec());
         let blockhash = self
             .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())?
             .0;
