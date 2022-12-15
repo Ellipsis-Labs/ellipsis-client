@@ -422,8 +422,8 @@ impl ClientSubsetSync for RpcClient {
         let signature = self.send_transaction_with_config(
             &tx,
             RpcSendTransactionConfig {
-                skip_preflight: false,
-                preflight_commitment: Some(CommitmentLevel::Processed),
+                skip_preflight: true,
+                preflight_commitment: None,
                 encoding: None,
                 max_retries: None,
                 min_context_slot: None,
@@ -445,7 +445,7 @@ impl ClientSubsetSync for RpcClient {
             } else {
                 break (signature, status);
             }
-            sleep(Duration::from_millis(200));
+            sleep(Duration::from_millis(100));
         };
 
         if let Some(result) = status {
@@ -471,7 +471,7 @@ impl ClientSubsetSync for RpcClient {
                 return Ok(signature);
             }
 
-            sleep(Duration::from_millis(200));
+            sleep(Duration::from_millis(100));
             if now.elapsed().as_secs() >= MAX_HASH_AGE_IN_SECONDS as u64 {
                 return Err(EllipsisClientError::from(anyhow::Error::msg(format!(
                     "Transaction ({}) took too long to confirm",
