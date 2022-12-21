@@ -1,26 +1,28 @@
+use serde::{Deserialize, Serialize};
 use solana_program::clock::UnixTimestamp;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
     EncodedTransaction, UiCompiledInstruction, UiInstruction, UiMessage, UiParsedInstruction,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ParsedTransaction {
     pub slot: u64,
     pub block_time: Option<UnixTimestamp>,
     pub instructions: Vec<ParsedInstruction>,
     pub inner_instructions: Vec<Vec<ParsedInnerInstruction>>,
     pub logs: Vec<String>,
+    pub is_err: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ParsedInstruction {
     pub program_id: String,
     pub accounts: Vec<String>,
     pub data: Vec<u8>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ParsedInnerInstruction {
     pub parent_index: usize,
     pub instruction: ParsedInstruction,
@@ -65,6 +67,7 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
         EncodedTransaction::Json(t) => t,
         _ => panic!("Unsupported transaction encoding"),
     };
+
     let (keys, instructions) = match ui_transaction.message {
         UiMessage::Parsed(p) => {
             let keys = p
@@ -89,6 +92,7 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
         ),
     };
     let tx_meta = tx.transaction.meta.unwrap();
+    let is_err = tx_meta.err.is_some();
     let logs = match tx_meta.log_messages {
         OptionSerializer::Some(l) => l,
         _ => vec![],
@@ -114,5 +118,6 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
         instructions,
         inner_instructions,
         logs,
+        is_err,
     }
 }
