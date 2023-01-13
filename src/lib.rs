@@ -559,10 +559,12 @@ impl ClientSubset for RwLock<BanksClient> {
                         .collect(),
                     logs: parsed_transaction.logs,
                 })
-                .ok_or(EllipsisClientError::from(anyhow::Error::msg(format!(
-                    "Failed to fetch transaction {}",
-                    signature
-                ))))
+                .ok_or_else(|| {
+                    EllipsisClientError::from(anyhow::Error::msg(format!(
+                        "Failed to fetch transaction {}",
+                        signature
+                    )))
+                })
             })
     }
 
