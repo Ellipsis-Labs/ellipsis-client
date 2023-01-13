@@ -351,61 +351,36 @@ impl ClientSubset for Arc<RpcClient> {
         tx: Transaction,
         signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature> {
-        let client = self.clone();
-        let signers_owned = signers.iter().map(|&i| clone_keypair(i)).collect_vec();
-
-        tokio::task::spawn_blocking(move || {
-            let keys = signers_owned.iter().collect::<Vec<&Keypair>>();
-            let signers = keys.as_ref();
-            (*client).process_transaction(tx, signers)
-        })
-        .await
-        .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
-        .and_then(|e| e)
+        self.deref().process_transaction(tx, signers)
     }
 
     async fn fetch_transaction(
         &self,
         signature: &Signature,
     ) -> EllipsisClientResult<ParsedTransaction> {
-        let client = self.clone();
-        let s = *signature;
-        tokio::task::spawn_blocking(move || {
-            (*client)
-                .get_transaction_with_config(
-                    &s,
-                    RpcTransactionConfig {
-                        encoding: Some(UiTransactionEncoding::Json),
-                        commitment: Some(CommitmentConfig::confirmed()),
-                        max_supported_transaction_version: None,
-                    },
-                )
-                .map_err(|_| {
-                    EllipsisClientError::from(anyhow::Error::msg(
-                        "Failed to fetch transaction".to_string(),
-                    ))
-                })
-        })
-        .await
-        .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
-        .and_then(|e| e)
-        .map(parse_transaction)
+        self.deref()
+            .get_transaction_with_config(
+                signature,
+                RpcTransactionConfig {
+                    encoding: Some(UiTransactionEncoding::Json),
+                    commitment: Some(CommitmentConfig::confirmed()),
+                    max_supported_transaction_version: None,
+                },
+            )
+            .map_err(|_| {
+                EllipsisClientError::from(anyhow::Error::msg(
+                    "Failed to fetch transaction".to_string(),
+                ))
+            })
+            .map(parse_transaction)
     }
 
     async fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash> {
-        let client = self.clone();
-        tokio::task::spawn_blocking(move || (*client).fetch_latest_blockhash())
-            .await
-            .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
-            .and_then(|e| e)
+        self.deref().fetch_latest_blockhash()
     }
 
     async fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account> {
-        let client = self.clone();
-        tokio::task::spawn_blocking(move || (*client).fetch_account(key))
-            .await
-            .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
-            .and_then(|e| e)
+        self.deref().fetch_account(key)
     }
 }
 
