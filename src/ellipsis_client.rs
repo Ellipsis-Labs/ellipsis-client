@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use itertools::Itertools;
 use solana_client::rpc_config::RpcTransactionConfig;
-use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
+use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_program::clock::MAX_HASH_AGE_IN_SECONDS;
 use solana_program::{
     hash::Hash, instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, rent::Rent,
@@ -96,17 +96,6 @@ pub trait ClientSubset {
         signature: &Signature,
     ) -> EllipsisClientResult<ParsedTransaction>;
     async fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account>;
-}
-
-pub trait ClientSubsetSync {
-    fn process_transaction(
-        &self,
-        tx: Transaction,
-        signers: &[&Keypair],
-    ) -> EllipsisClientResult<Signature>;
-    fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash>;
-    fn fetch_transaction(&self, signature: &Signature) -> EllipsisClientResult<ParsedTransaction>;
-    fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account>;
 }
 
 pub struct EllipsisClient {
@@ -344,97 +333,36 @@ impl Deref for EllipsisClient {
 impl ClientSubset for Arc<RpcClient> {
     async fn process_transaction(
         &self,
-        tx: Transaction,
-        signers: &[&Keypair],
-    ) -> EllipsisClientResult<Signature> {
-        let client = self.clone();
-        let signers_owned = signers.iter().map(|&i| clone_keypair(i)).collect_vec();
-
-        tokio::task::spawn_blocking(move || {
-            let keys = signers_owned.iter().collect::<Vec<&Keypair>>();
-            let signers = keys.as_ref();
-            (*client).process_transaction(tx, signers)
-        })
-        .await
-        .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
-        .and_then(|e| e)
-    }
-
-    async fn fetch_transaction(
-        &self,
-        signature: &Signature,
-    ) -> EllipsisClientResult<ParsedTransaction> {
-        let client = self.clone();
-        let s = *signature;
-        tokio::task::spawn_blocking(move || {
-            (*client)
-                .get_transaction_with_config(
-                    &s,
-                    RpcTransactionConfig {
-                        encoding: Some(UiTransactionEncoding::Json),
-                        commitment: Some(CommitmentConfig::confirmed()),
-                        max_supported_transaction_version: None,
-                    },
-                )
-                .map_err(|_| {
-                    EllipsisClientError::from(anyhow::Error::msg(
-                        "Failed to fetch transaction".to_string(),
-                    ))
-                })
-        })
-        .await
-        .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
-        .and_then(|e| e)
-        .map(parse_transaction)
-    }
-
-    async fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash> {
-        let client = self.clone();
-        tokio::task::spawn_blocking(move || (*client).fetch_latest_blockhash())
-            .await
-            .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
-            .and_then(|e| e)
-    }
-
-    async fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account> {
-        let client = self.clone();
-        tokio::task::spawn_blocking(move || (*client).fetch_account(key))
-            .await
-            .map_err(|e| EllipsisClientError::Other(anyhow::Error::msg(e.to_string())))
-            .and_then(|e| e)
-    }
-}
-
-impl ClientSubsetSync for RpcClient {
-    fn process_transaction(
-        &self,
         mut tx: Transaction,
         signers: &[&Keypair],
     ) -> EllipsisClientResult<Signature> {
         let blockhash = self
-            .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())?
+            .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
+            .await?
             .0;
         tx.partial_sign(&signers.to_vec(), blockhash);
-        let signature = self.send_transaction_with_config(
-            &tx,
-            RpcSendTransactionConfig {
-                skip_preflight: true,
-                preflight_commitment: None,
-                encoding: None,
-                max_retries: None,
-                min_context_slot: None,
-            },
-        )?;
+        let signature = self
+            .send_transaction_with_config(
+                &tx,
+                RpcSendTransactionConfig {
+                    skip_preflight: true,
+                    preflight_commitment: None,
+                    encoding: None,
+                    max_retries: None,
+                    min_context_slot: None,
+                },
+            )
+            .await?;
 
         let (signature, status) = loop {
             // Get recent commitment in order to count confirmations for successful transactions
             let status = self
-                .get_signature_status_with_commitment(&signature, CommitmentConfig::processed())?;
+                .get_signature_status_with_commitment(&signature, CommitmentConfig::processed())
+                .await?;
             if status.is_none() {
-                let blockhash_not_found = !self.is_blockhash_valid(
-                    &tx.message.recent_blockhash,
-                    CommitmentConfig::processed(),
-                )?;
+                let blockhash_not_found = !self
+                    .is_blockhash_valid(&tx.message.recent_blockhash, CommitmentConfig::processed())
+                    .await?;
                 if blockhash_not_found {
                     break (signature, status);
                 }
@@ -447,7 +375,7 @@ impl ClientSubsetSync for RpcClient {
         if let Some(result) = status {
             if let Err(err) = result {
                 println!("Transaction failed: {:?}", err);
-                let logs = self.fetch_transaction(&signature).map(|tx| tx.logs)?;
+                let logs = self.fetch_transaction(&signature).await.map(|tx| tx.logs)?;
                 return Err(EllipsisClientError::TransactionFailed { signature, logs });
             }
         } else {
@@ -461,7 +389,8 @@ impl ClientSubsetSync for RpcClient {
             // Return when specified commitment is reached
             // Failed transactions have already been eliminated, `is_some` check is sufficient
             if self
-                .get_signature_status_with_commitment(&signature, CommitmentConfig::confirmed())?
+                .get_signature_status_with_commitment(&signature, CommitmentConfig::confirmed())
+                .await?
                 .is_some()
             {
                 return Ok(signature);
@@ -477,17 +406,24 @@ impl ClientSubsetSync for RpcClient {
         }
     }
 
-    fn fetch_transaction(&self, signature: &Signature) -> EllipsisClientResult<ParsedTransaction> {
+    /// Fetch transaction with 3 retries on failure
+    async fn fetch_transaction(
+        &self,
+        signature: &Signature,
+    ) -> EllipsisClientResult<ParsedTransaction> {
         let mut retries = 0;
         let tx = loop {
-            match self.get_transaction_with_config(
-                signature,
-                RpcTransactionConfig {
-                    encoding: Some(UiTransactionEncoding::Base58),
-                    commitment: Some(CommitmentConfig::confirmed()),
-                    max_supported_transaction_version: None,
-                },
-            ) {
+            match self
+                .get_transaction_with_config(
+                    signature,
+                    RpcTransactionConfig {
+                        encoding: Some(UiTransactionEncoding::Base58),
+                        commitment: Some(CommitmentConfig::confirmed()),
+                        max_supported_transaction_version: None,
+                    },
+                )
+                .await
+            {
                 Ok(res) => break Ok(res),
                 Err(e) => {
                     retries += 1;
@@ -504,15 +440,17 @@ impl ClientSubsetSync for RpcClient {
         tx.map(parse_transaction)
     }
 
-    fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {
+    async fn fetch_latest_blockhash(&self) -> EllipsisClientResult<Hash> {
         Ok(self
             .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
+            .await
             .map(|(hash, _)| hash)?)
     }
 
-    fn fetch_account(&self, key: Pubkey) -> std::result::Result<Account, EllipsisClientError> {
+    async fn fetch_account(&self, key: Pubkey) -> EllipsisClientResult<Account> {
         Ok(self
-            .get_account_with_commitment(&key, CommitmentConfig::confirmed())?
+            .get_account_with_commitment(&key, CommitmentConfig::confirmed())
+            .await?
             .value
             .ok_or_else(|| anyhow!("Failed to get account"))?)
     }
@@ -550,10 +488,12 @@ impl ClientSubset for RwLock<BanksClient> {
                 )))
             })
             .and_then(|tx| {
-                tx.ok_or(EllipsisClientError::from(anyhow::Error::msg(format!(
-                    "Failed to fetch transaction {}",
-                    signature
-                ))))
+                tx.ok_or_else(|| {
+                    EllipsisClientError::from(anyhow::Error::msg(format!(
+                        "Failed to fetch transaction {}",
+                        signature
+                    )))
+                })
             })
     }
 
