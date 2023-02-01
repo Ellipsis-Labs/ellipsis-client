@@ -1,5 +1,8 @@
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use solana_program::clock::UnixTimestamp;
+use solana_program::{
+    clock::UnixTimestamp, instruction::CompiledInstruction, message::VersionedMessage,
+};
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
     EncodedTransaction, UiCompiledInstruction, UiInstruction, UiMessage, UiParsedInstruction,
@@ -60,15 +63,23 @@ pub fn parse_ui_instruction(
     }
 }
 
-pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> ParsedTransaction {
-    let slot = tx.slot;
-    let block_time = tx.block_time;
-    let ui_transaction = match tx.transaction.transaction {
-        EncodedTransaction::Json(t) => t,
-        _ => panic!("Unsupported transaction encoding"),
-    };
+pub fn parse_compiled_instruction(
+    instruction: &CompiledInstruction,
+    account_keys: &[String],
+) -> ParsedInstruction {
+    ParsedInstruction {
+        program_id: account_keys[instruction.program_id_index as usize].clone(),
+        accounts: instruction
+            .accounts
+            .iter()
+            .map(|i| account_keys[*i as usize].clone())
+            .collect(),
+        data: instruction.data.clone(),
+    }
+}
 
-    let (keys, instructions) = match ui_transaction.message {
+pub fn parse_ui_message(message: UiMessage) -> (Vec<String>, Vec<ParsedInstruction>) {
+    match message {
         UiMessage::Parsed(p) => {
             let keys = p
                 .account_keys
@@ -90,7 +101,38 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
                 .map(|i| parse_ui_compiled_instruction(i, &r.account_keys))
                 .collect::<Vec<ParsedInstruction>>(),
         ),
+    }
+}
+
+pub fn parse_versioned_message(message: VersionedMessage) -> (Vec<String>, Vec<ParsedInstruction>) {
+    let keys = message
+        .static_account_keys()
+        .into_iter()
+        .map(|pk| pk.to_string())
+        .collect_vec();
+    let instructions = message
+        .instructions()
+        .iter()
+        .map(|i| parse_compiled_instruction(i, &keys))
+        .collect_vec();
+    (keys, instructions)
+}
+
+pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> ParsedTransaction {
+    let slot = tx.slot;
+    let block_time = tx.block_time;
+    let (keys, instructions) = match tx.transaction.transaction {
+        EncodedTransaction::Json(t) => parse_ui_message(t.message),
+        _ => {
+            let versioned_tx = tx
+                .transaction
+                .transaction
+                .decode()
+                .expect("Failed to decode transaction");
+            parse_versioned_message(versioned_tx.message)
+        }
     };
+
     let tx_meta = tx.transaction.meta.unwrap();
     let is_err = tx_meta.err.is_some();
     let logs = match tx_meta.log_messages {
