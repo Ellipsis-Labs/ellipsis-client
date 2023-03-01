@@ -419,7 +419,7 @@ impl ClientSubset for Arc<RpcClient> {
                     RpcTransactionConfig {
                         encoding: Some(UiTransactionEncoding::Base58),
                         commitment: Some(CommitmentConfig::confirmed()),
-                        max_supported_transaction_version: None,
+                        max_supported_transaction_version: Some(0),
                     },
                 )
                 .await
