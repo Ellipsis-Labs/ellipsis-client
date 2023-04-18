@@ -5,6 +5,7 @@ pub mod ellipsis_client;
 pub mod program_test;
 pub mod programs;
 pub mod transaction_utils;
+pub mod grpc_client;
 
 #[macro_use]
 extern crate solana_bpf_loader_program;

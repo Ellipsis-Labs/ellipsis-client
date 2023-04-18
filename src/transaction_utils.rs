@@ -16,6 +16,7 @@ pub struct ParsedTransaction {
     pub inner_instructions: Vec<Vec<ParsedInnerInstruction>>,
     pub logs: Vec<String>,
     pub is_err: bool,
+    pub signature: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -140,15 +141,21 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
         _ => vec![],
     };
 
-    let (keys, instructions) = match tx.transaction.transaction {
-        EncodedTransaction::Json(t) => parse_ui_message(t.message, &loaded_addresses),
+    let (keys, instructions, signature) = match tx.transaction.transaction {
+        EncodedTransaction::Json(t) => {
+            let (keys, instructions) = parse_ui_message(t.message, &loaded_addresses);
+            let signature = t.signatures[0].to_string();
+            (keys, instructions, signature)
+        }
         _ => {
             let versioned_tx = tx
                 .transaction
                 .transaction
                 .decode()
                 .expect("Failed to decode transaction");
-            parse_versioned_message(versioned_tx.message, &loaded_addresses)
+            let (keys, instructions) =
+                parse_versioned_message(versioned_tx.message, &loaded_addresses);
+            (keys, instructions, versioned_tx.signatures[0].to_string())
         }
     };
 
@@ -179,5 +186,6 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
         inner_instructions,
         logs,
         is_err,
+        signature,
     }
 }

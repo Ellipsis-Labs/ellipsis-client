@@ -1,6 +1,6 @@
 [package]
 name = "ellipsis-client"
-version = "0.1.17"
+version = "0.2.0"
 edition = "2021"
 description = "Lightweight interface for interacting with the Solana blockchain"
 license = "MIT OR Apache-2.0"
@@ -36,3 +36,6 @@ futures = "0.3.25"
 lazy_static = "1.1.1"
 tarpc = {version = "0.29.0", features = ["full"] }
 tokio-serde = {version = "0.8", features = ["bincode"]}
+yellowstone-grpc-client = "1.1.1+solana.1.15.2"
+yellowstone-grpc-proto = "1.1.0+solana.1.15.2"
+backoff = { version = "0.4.0", features = ["tokio"] }

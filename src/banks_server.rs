@@ -80,6 +80,8 @@ fn get_parsed_transaction(
             data: ix.data.clone(),
         })
         .collect::<Vec<_>>();
+
+    let signature = tx.signatures[0].to_string();
     let inner_instructions = details
         .inner_instructions
         .unwrap_or_default()
@@ -113,6 +115,7 @@ fn get_parsed_transaction(
         block_time: None,
         instructions: instructions.clone(),
         inner_instructions,
+        signature,
         logs: details.log_messages.unwrap_or_default(),
         is_err: false,
     }
