@@ -140,7 +140,7 @@ pub async fn transaction_subscribe(
         let transactions = transactions.clone();
         let sender = sender.clone();
         async move {
-            println!("Retry to connect to the server");
+            println!("Reconnecting to the gRPC server");
             let mut client = GeyserGrpcClient::connect(endpoint, x_token, None)?;
             let (mut subscribe_tx, mut stream) = client.subscribe().await?;
             subscribe_tx
@@ -157,19 +157,25 @@ pub async fn transaction_subscribe(
             while let Some(message) = stream.next().await {
                 let parsed_tx = message.map(|msg| match msg.update_oneof {
                     Some(UpdateOneof::Transaction(transaction)) => {
-                        println!(
-                            "new transaction update: filters {:?}, transaction: {:#?}",
-                            msg.filters, transaction
-                        );
                         let slot = transaction.slot;
                         let yellowstone_tx = transaction
                             .transaction
                             .and_then(|tx| {
+                                if tx.meta.is_none() {
+                                    println!("Transaction meta is empty");
+                                }
+                                if tx.transaction.is_none() {
+                                    println!("Transaction is empty");
+                                }
+                                let message = tx.transaction.and_then(|x| x.message);
+                                if message.is_none() {
+                                    println!("Transaction message is empty");
+                                }
                                 Some(YellowstoneTransaction {
                                     slot,
                                     meta: tx.meta?,
                                     signature: Signature::new(&tx.signature),
-                                    message: tx.transaction?.message?,
+                                    message: message?,
                                 })
                             })
                             .map(|tx| tx.to_parsed_transaction());
@@ -182,7 +188,7 @@ pub async fn transaction_subscribe(
                         println!("Failed to send transaction update");
                     }
                 } else {
-                    println!("Failed to process transaction update");
+                    continue;
                 }
             }
             Ok(())
