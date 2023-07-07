@@ -4,6 +4,9 @@ use phoenix_sdk::sdk_client::SDKClient;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use tokio::{sync::mpsc::channel, try_join};
 
+/// Sample run command: 
+/// standard: cargo run -- -u NETWORK_URL -- x-token TOKEN --accounts-to-include 4DoNfFBfF7UokCC2FQzriy7yHK6DY6NVdYpuekQ5pRgg
+/// embedded token: cargo run -- -u NETWORK_URL_WITH_TOKEN --accounts-to-include 4DoNfFBfF7UokCC2FQzriy7yHK6DY6NVdYpuekQ5pRgg
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
 struct Args {
