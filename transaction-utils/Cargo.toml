@@ -1,0 +1,17 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "ellipsis-transaction-utils"
+version = "0.1.0"
+edition = "2021"
+description = "A library for sanely parsing Solana transactions."
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools = { workspace = true } 
+solana-transaction-status = { workspace = true } 
+bs58 = { workspace = true } 
+solana-sdk = { workspace = true } 
+serde = { workspace = true } 

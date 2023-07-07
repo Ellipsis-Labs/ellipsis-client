@@ -9,7 +9,7 @@ pub use crate::banks_client_interface::{
     BanksClient as TarpcClient, BanksRequest, BanksResponse, BanksTransactionResultWithSimulation,
     TransactionStatus,
 };
-use crate::transaction_utils::ParsedTransaction;
+use ellipsis_transaction_utils::ParsedTransaction;
 use {
     borsh::BorshDeserialize,
     futures::{future::join_all, Future, FutureExt, TryFutureExt},

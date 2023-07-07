@@ -4,7 +4,7 @@ use solana_program_runtime::timings::ExecuteTimings;
 use solana_runtime::bank::{TransactionExecutionDetails, TransactionExecutionResult};
 use solana_sdk::{clock::MAX_PROCESSING_AGE, transaction::VersionedTransaction};
 
-use crate::transaction_utils::{ParsedInnerInstruction, ParsedInstruction, ParsedTransaction};
+use ellipsis_transaction_utils::{ParsedInnerInstruction, ParsedInstruction, ParsedTransaction};
 
 use {
     crate::banks_client_interface::{

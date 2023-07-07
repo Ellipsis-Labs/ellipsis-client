@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use crate::transaction_utils::ParsedTransaction;
+use ellipsis_transaction_utils::ParsedTransaction;
 use {
     serde::{Deserialize, Serialize},
     solana_sdk::{
