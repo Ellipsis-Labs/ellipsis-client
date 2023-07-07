@@ -27,11 +27,9 @@ use {
     tarpc::{
         client::{self, NewClient, RequestDispatch},
         context::{self, Context},
-        serde_transport::tcp,
         ClientMessage, Response, Transport,
     },
-    tokio::{net::ToSocketAddrs, time::Duration},
-    tokio_serde::formats::Bincode,
+    tokio::{time::Duration},
 };
 use {
     solana_sdk::{
@@ -510,13 +508,6 @@ pub async fn start_client<C>(transport: C) -> Result<BanksClient, BanksClientErr
 where
     C: Transport<ClientMessage<BanksRequest>, Response<BanksResponse>> + Send + 'static,
 {
-    Ok(BanksClient {
-        inner: TarpcClient::new(client::Config::default(), transport).spawn(),
-    })
-}
-
-pub async fn start_tcp_client<T: ToSocketAddrs>(addr: T) -> Result<BanksClient, BanksClientError> {
-    let transport = tcp::connect(addr, Bincode::default).await?;
     Ok(BanksClient {
         inner: TarpcClient::new(client::Config::default(), transport).spawn(),
     })
