@@ -33,7 +33,7 @@ impl YellowstoneTransaction {
             .message
             .account_keys
             .iter()
-            .map(|pk| Pubkey::try_from_slice(&pk).unwrap().to_string())
+            .map(|pk| Pubkey::try_from_slice(pk).unwrap().to_string())
             .collect_vec();
         keys.extend_from_slice(loaded_addresses);
         let instructions = self
@@ -58,12 +58,12 @@ impl YellowstoneTransaction {
             self.meta
                 .loaded_writable_addresses
                 .iter()
-                .map(|x| Pubkey::try_from_slice(&x).unwrap().to_string())
+                .map(|x| Pubkey::try_from_slice(x).unwrap().to_string())
                 .collect_vec(),
             self.meta
                 .loaded_readonly_addresses
                 .iter()
-                .map(|x| Pubkey::try_from_slice(&x).unwrap().to_string())
+                .map(|x| Pubkey::try_from_slice(x).unwrap().to_string())
                 .collect_vec(),
         ]
         .concat();
@@ -161,7 +161,8 @@ pub async fn transaction_subscribe(
                 let parsed_tx = message.map(|msg| match msg.update_oneof {
                     Some(UpdateOneof::Transaction(transaction)) => {
                         let slot = transaction.slot;
-                        let yellowstone_tx = transaction
+                        
+                        transaction
                             .transaction
                             .and_then(|tx| {
                                 if tx.meta.is_none() {
@@ -181,8 +182,7 @@ pub async fn transaction_subscribe(
                                     message: message?,
                                 })
                             })
-                            .map(|tx| tx.to_parsed_transaction());
-                        yellowstone_tx
+                            .map(|tx| tx.to_parsed_transaction())
                     }
                     _ => None,
                 });

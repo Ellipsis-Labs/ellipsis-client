@@ -312,7 +312,7 @@ impl EllipsisClient {
     }
 
     pub fn rent_exempt(&self, size: usize) -> u64 {
-        Rent::default().minimum_balance(size) as u64
+        Rent::default().minimum_balance(size)
     }
 
     pub async fn get_account(&self, key: &Pubkey) -> EllipsisClientResult<Account> {
