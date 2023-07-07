@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use itertools::Itertools;
 use solana_client::rpc_config::RpcTransactionConfig;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
-use solana_program::clock::MAX_HASH_AGE_IN_SECONDS;
 use solana_program::{
     hash::Hash, instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, rent::Rent,
 };
@@ -20,8 +19,6 @@ use solana_sdk::{
 };
 use solana_transaction_status::UiTransactionEncoding;
 use std::collections::{HashMap, HashSet};
-use std::thread::sleep;
-use std::time::Instant;
 use std::{
     ops::Deref,
     sync::{Arc, PoisonError},
@@ -159,6 +156,14 @@ impl EllipsisClient {
             keys: vec![clone_keypair(payer)],
             timeout_ms,
         })
+    }
+
+    pub fn new(
+        url: &str,
+    ) -> std::result::Result<Self, EllipsisClientError> {
+        let rpc = RpcClient::new(url.to_string());
+        let payer = Keypair::new();
+        Self::from_rpc_with_timeout(rpc, &payer, 10000)
     }
 
     pub fn from_rpc(
@@ -353,57 +358,7 @@ impl ClientSubset for Arc<RpcClient> {
                 },
             )
             .await?;
-
-        let (signature, status) = loop {
-            // Get recent commitment in order to count confirmations for successful transactions
-            let status = self
-                .get_signature_status_with_commitment(&signature, CommitmentConfig::processed())
-                .await?;
-            if status.is_none() {
-                let blockhash_not_found = !self
-                    .is_blockhash_valid(&tx.message.recent_blockhash, CommitmentConfig::processed())
-                    .await?;
-                if blockhash_not_found {
-                    break (signature, status);
-                }
-            } else {
-                break (signature, status);
-            }
-            sleep(Duration::from_millis(100));
-        };
-
-        if let Some(result) = status {
-            if let Err(err) = result {
-                println!("Transaction failed: {:?}", err);
-                let logs = self.fetch_transaction(&signature).await.map(|tx| tx.logs)?;
-                return Err(EllipsisClientError::TransactionFailed { signature, logs });
-            }
-        } else {
-            return Err(EllipsisClientError::from(anyhow::Error::msg(format!(
-                "Failed to send and confirm transaction ({})",
-                signature
-            ))));
-        }
-        let now = Instant::now();
-        loop {
-            // Return when specified commitment is reached
-            // Failed transactions have already been eliminated, `is_some` check is sufficient
-            if self
-                .get_signature_status_with_commitment(&signature, CommitmentConfig::confirmed())
-                .await?
-                .is_some()
-            {
-                return Ok(signature);
-            }
-
-            sleep(Duration::from_millis(100));
-            if now.elapsed().as_secs() >= MAX_HASH_AGE_IN_SECONDS as u64 {
-                return Err(EllipsisClientError::from(anyhow::Error::msg(format!(
-                    "Transaction ({}) took too long to confirm",
-                    signature
-                ))));
-            }
-        }
+        Ok(signature)
     }
 
     /// Fetch transaction with 3 retries on failure
