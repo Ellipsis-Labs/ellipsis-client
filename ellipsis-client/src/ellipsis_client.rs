@@ -1,6 +1,6 @@
 use crate::banks_client::BanksClient;
 use crate::banks_client::BanksClientError;
-use crate::transaction_utils::{parse_transaction, ParsedTransaction};
+use ellipsis_transaction_utils::{parse_transaction, ParsedTransaction};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use itertools::Itertools;

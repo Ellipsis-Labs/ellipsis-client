@@ -4,7 +4,7 @@ use solana_sdk::signature::Signature;
 use tokio::sync::mpsc::Sender;
 use yellowstone_grpc_proto::prelude::{Message, TransactionStatusMeta};
 
-use crate::transaction_utils::{ParsedInnerInstruction, ParsedInstruction, ParsedTransaction};
+use ellipsis_transaction_utils::{ParsedInnerInstruction, ParsedInstruction, ParsedTransaction};
 
 use {
     backoff::{future::retry, ExponentialBackoff},
@@ -129,6 +129,7 @@ pub async fn transaction_subscribe(
                 .into_iter()
                 .map(|x| x.to_string())
                 .collect(),
+            account_required: vec![] 
         },
     );
 
@@ -150,6 +151,8 @@ pub async fn transaction_subscribe(
                     transactions,
                     blocks: HashMap::new(),
                     blocks_meta: HashMap::new(),
+                    commitment: None, 
+                    accounts_data_slice: vec![],
                 })
                 .await
                 .map_err(GeyserGrpcClientError::SubscribeSendError)?;
