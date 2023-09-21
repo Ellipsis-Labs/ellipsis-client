@@ -18,6 +18,7 @@ pub struct ParsedTransaction {
     pub logs: Vec<String>,
     pub is_err: bool,
     pub signature: String,
+    pub fee_payer: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -188,6 +189,7 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
         logs,
         is_err,
         signature,
+        fee_payer: keys[0].clone(),
     }
 }
 
@@ -236,6 +238,7 @@ pub fn parse_versioned_transaction(
         inner_instructions,
         logs,
         is_err,
+        fee_payer: keys[0].clone(),
     })
 }
 
@@ -282,5 +285,6 @@ pub fn parse_encoded_transaction_with_status_meta(
         inner_instructions,
         logs,
         is_err,
+        fee_payer: keys[0].clone(),
     })
 }
