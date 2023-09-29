@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ellipsis-client = { path = "../../ellipsis-client" }
+ellipsis-client = "=0.2.1" 
+ellipsis-transaction-utils = "=0.1.0" 
 clap = { version = "3.2.22", features = ["cargo", "derive"] }
 anyhow = "1.0.52"
 tokio = { version = "1.6", features = ["full"] }
