@@ -42,3 +42,4 @@ yellowstone-grpc-client = { workspace = true }
 yellowstone-grpc-proto = { workspace = true } 
 backoff = { workspace = true } 
 ellipsis-transaction-utils = { version = "0.1.1", path = "../transaction-utils" }
+tracing = { workspace = true }
