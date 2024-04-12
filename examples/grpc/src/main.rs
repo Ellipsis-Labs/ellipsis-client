@@ -2,7 +2,8 @@ use clap::Parser;
 use ellipsis_client::grpc_client::transaction_subscribe;
 use phoenix_sdk::sdk_client::SDKClient;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
-use tokio::{sync::mpsc::channel, try_join};
+use tokio::{sync::mpsc::unbounded_channel, try_join};
+use solana_sdk::commitment_config::CommitmentLevel;
 
 /// Sample run command: 
 /// standard: cargo run -- -u NETWORK_URL -- x-token TOKEN --accounts-to-include 4DoNfFBfF7UokCC2FQzriy7yHK6DY6NVdYpuekQ5pRgg
@@ -32,7 +33,8 @@ async fn main() -> anyhow::Result<()> {
     let url = args.url.trim_end_matches("/").to_string();
     let sdk_url = url.clone();
 
-    let (sender, mut receiver) = channel(10000);
+    let (sender, mut receiver) = unbounded_channel();
+    println!("Listening to {}", url);
 
     // split url by forward slash
     let x_token = match args.x_token {
@@ -54,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
             sender,
             args.accounts_to_include,
             args.accounts_to_exclude,
+            Some(CommitmentLevel::Confirmed)
         )
         .await
     });
@@ -67,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        println!("Transaction stream ended");
     });
 
     match try_join!(market_data_sender, handler) {
