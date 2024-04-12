@@ -95,7 +95,10 @@ impl YellowstoneTransaction {
             })
             .collect::<Vec<Vec<ParsedInnerInstruction>>>();
 
+        let fee_payer = keys[0].clone();
+
         ParsedTransaction {
+            fee_payer,
             slot: self.slot,
             block_time: None,
             signature: self.signature.to_string(),
@@ -129,7 +132,7 @@ pub async fn transaction_subscribe(
                 .into_iter()
                 .map(|x| x.to_string())
                 .collect(),
-            account_required: vec![] 
+            account_required: vec![],
         },
     );
 
@@ -151,7 +154,7 @@ pub async fn transaction_subscribe(
                     transactions,
                     blocks: HashMap::new(),
                     blocks_meta: HashMap::new(),
-                    commitment: None, 
+                    commitment: None,
                     accounts_data_slice: vec![],
                 })
                 .await
@@ -161,7 +164,7 @@ pub async fn transaction_subscribe(
                 let parsed_tx = message.map(|msg| match msg.update_oneof {
                     Some(UpdateOneof::Transaction(transaction)) => {
                         let slot = transaction.slot;
-                        
+
                         transaction
                             .transaction
                             .and_then(|tx| {
@@ -178,7 +181,7 @@ pub async fn transaction_subscribe(
                                 Some(YellowstoneTransaction {
                                     slot,
                                     meta: tx.meta?,
-                                    signature: Signature::new(&tx.signature),
+                                    signature: Signature::try_from(tx.signature).ok()?,
                                     message: message?,
                                 })
                             })

@@ -5,7 +5,8 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
-    EncodedTransaction, UiCompiledInstruction, UiInstruction, UiMessage, UiParsedInstruction,
+    EncodedTransaction, EncodedTransactionWithStatusMeta, UiCompiledInstruction, UiInstruction,
+    UiMessage, UiParsedInstruction, VersionedTransactionWithStatusMeta,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -17,6 +18,7 @@ pub struct ParsedTransaction {
     pub logs: Vec<String>,
     pub is_err: bool,
     pub signature: String,
+    pub fee_payer: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -187,5 +189,102 @@ pub fn parse_transaction(tx: EncodedConfirmedTransactionWithStatusMeta) -> Parse
         logs,
         is_err,
         signature,
+        fee_payer: keys[0].clone(),
     }
+}
+
+pub fn parse_versioned_transaction(
+    slot: u64,
+    block_time: Option<i64>,
+    tx: VersionedTransactionWithStatusMeta,
+) -> Option<ParsedTransaction> {
+    let tx_meta = tx.meta;
+    let is_err = tx_meta.status.is_err();
+    if is_err {
+        return None;
+    }
+    let loaded_addresses = [
+        tx_meta.loaded_addresses.writable,
+        tx_meta.loaded_addresses.readonly,
+    ]
+    .concat()
+    .iter()
+    .map(|x| x.to_string())
+    .collect::<Vec<String>>();
+
+    let (keys, instructions) =
+        { parse_versioned_message(tx.transaction.message, loaded_addresses.as_slice()) };
+
+    let logs = tx_meta.log_messages.unwrap_or_default();
+    let inner_instructions = tx_meta
+        .inner_instructions
+        .unwrap_or_default()
+        .iter()
+        .map(|ii| {
+            ii.instructions
+                .iter()
+                .map(|i| ParsedInnerInstruction {
+                    parent_index: ii.index as usize,
+                    instruction: parse_compiled_instruction(&i.instruction, &keys),
+                })
+                .collect::<Vec<ParsedInnerInstruction>>()
+        })
+        .collect::<Vec<Vec<ParsedInnerInstruction>>>();
+    Some(ParsedTransaction {
+        slot,
+        signature: tx.transaction.signatures[0].to_string(),
+        block_time,
+        instructions,
+        inner_instructions,
+        logs,
+        is_err,
+        fee_payer: keys[0].clone(),
+    })
+}
+
+pub fn parse_encoded_transaction_with_status_meta(
+    slot: u64,
+    block_time: Option<i64>,
+    tx: EncodedTransactionWithStatusMeta,
+) -> Option<ParsedTransaction> {
+    let tx_meta = tx.meta?;
+    let loaded_addresses = match tx_meta.loaded_addresses {
+        OptionSerializer::Some(la) => [la.writable, la.readonly].concat(),
+        _ => vec![],
+    };
+
+    let versioned_tx = tx.transaction.decode()?;
+    let (keys, instructions) =
+        { parse_versioned_message(versioned_tx.message, loaded_addresses.as_slice()) };
+
+    let is_err = tx_meta.status.is_err();
+    let logs = match tx_meta.log_messages {
+        OptionSerializer::Some(lm) => lm,
+        _ => vec![],
+    };
+    let inner_instructions = match tx_meta.inner_instructions {
+        OptionSerializer::Some(inner_instructions) => inner_instructions
+            .iter()
+            .map(|ii| {
+                ii.instructions
+                    .iter()
+                    .map(|i| ParsedInnerInstruction {
+                        parent_index: ii.index as usize,
+                        instruction: parse_ui_instruction(i, &keys),
+                    })
+                    .collect::<Vec<ParsedInnerInstruction>>()
+            })
+            .collect::<Vec<Vec<ParsedInnerInstruction>>>(),
+        _ => vec![],
+    };
+    Some(ParsedTransaction {
+        slot,
+        signature: versioned_tx.signatures[0].to_string(),
+        block_time,
+        instructions,
+        inner_instructions,
+        logs,
+        is_err,
+        fee_payer: keys[0].clone(),
+    })
 }

@@ -2,7 +2,7 @@ cargo-features = ["workspace-inheritance"]
 
 [package]
 name = "ellipsis-client"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 description = "Lightweight interface for interacting with the Solana blockchain"
 license = "MIT OR Apache-2.0"
@@ -41,4 +41,4 @@ tokio-serde = { workspace = true }
 yellowstone-grpc-client = { workspace = true } 
 yellowstone-grpc-proto = { workspace = true } 
 backoff = { workspace = true } 
-ellipsis-transaction-utils = { version = "0.1.0", path = "../transaction-utils" }
+ellipsis-transaction-utils = { version = "0.1.1", path = "../transaction-utils" }
