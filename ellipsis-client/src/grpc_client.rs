@@ -95,7 +95,10 @@ impl YellowstoneTransaction {
             })
             .collect::<Vec<Vec<ParsedInnerInstruction>>>();
 
+        let fee_payer = keys[0].clone();
+
         ParsedTransaction {
+            fee_payer,
             slot: self.slot,
             block_time: None,
             signature: self.signature.to_string(),
@@ -178,7 +181,7 @@ pub async fn transaction_subscribe(
                                 Some(YellowstoneTransaction {
                                     slot,
                                     meta: tx.meta?,
-                                    signature: Signature::new(&tx.signature),
+                                    signature: Signature::try_from(tx.signature).ok()?,
                                     message: message?,
                                 })
                             })

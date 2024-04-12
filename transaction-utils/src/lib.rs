@@ -225,7 +225,7 @@ pub fn parse_versioned_transaction(
                 .iter()
                 .map(|i| ParsedInnerInstruction {
                     parent_index: ii.index as usize,
-                    instruction: parse_compiled_instruction(i, &keys),
+                    instruction: parse_compiled_instruction(&i.instruction, &keys),
                 })
                 .collect::<Vec<ParsedInnerInstruction>>()
         })
