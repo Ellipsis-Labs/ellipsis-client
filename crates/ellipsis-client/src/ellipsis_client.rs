@@ -2,11 +2,14 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use ellipsis_transaction_utils::{parse_transaction, ParsedTransaction};
 use itertools::Itertools;
+use solana_banks_client::BanksClient;
+use solana_banks_client::BanksClientError;
 use solana_client::rpc_config::RpcTransactionConfig;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_program::{
     hash::Hash, instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, rent::Rent,
 };
+use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::{
     account::Account,
     commitment_config::CommitmentConfig,
@@ -23,6 +26,7 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
+use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 pub type EllipsisClientResult<T = ()> = std::result::Result<T, EllipsisClientError>;
@@ -58,6 +62,12 @@ impl From<Box<dyn std::error::Error>> for EllipsisClientError {
 
 impl<T> From<PoisonError<T>> for EllipsisClientError {
     fn from(e: PoisonError<T>) -> Self {
+        EllipsisClientError::Other(anyhow::Error::msg(e.to_string()))
+    }
+}
+
+impl From<BanksClientError> for EllipsisClientError {
+    fn from(e: BanksClientError) -> Self {
         EllipsisClientError::Other(anyhow::Error::msg(e.to_string()))
     }
 }
@@ -131,6 +141,29 @@ impl EllipsisClient {
         let rpc = RpcClient::new(url.to_string());
         let payer = Keypair::new();
         Self::from_rpc_with_timeout(rpc, &payer, 10000)
+    }
+
+    pub async fn from_banks(
+        client: &BanksClient,
+        payer: &Keypair,
+    ) -> std::result::Result<Self, EllipsisClientError> {
+        Self::from_banks_with_timeout(client, payer, 10000).await
+    }
+
+    pub async fn from_banks_with_timeout(
+        client: &BanksClient,
+        payer: &Keypair,
+        timeout_ms: u64,
+    ) -> std::result::Result<Self, EllipsisClientError> {
+        let client = client.clone();
+        Ok(Self {
+            client: Arc::new(RwLock::new(client)),
+            is_bank_client: true,
+            rpc_client: None,
+            payer: clone_keypair(payer),
+            keys: vec![clone_keypair(payer)],
+            timeout_ms,
+        })
     }
 
     pub fn from_rpc(
@@ -375,5 +408,49 @@ impl ClientSubset for Arc<RpcClient> {
             .await?
             .value
             .ok_or_else(|| anyhow!("Failed to get account"))?)
+    }
+}
+
+#[async_trait]
+impl ClientSubset for RwLock<BanksClient> {
+    async fn process_transaction(
+        &self,
+        mut tx: Transaction,
+        signers: &[&Keypair],
+    ) -> EllipsisClientResult<Signature> {
+        tx.partial_sign(&signers.to_vec(), self.fetch_latest_blockhash().await?);
+        let sig = tx.signatures[0];
+        self.write()
+            .await
+            .process_transaction_with_commitment(tx, CommitmentLevel::Confirmed)
+            .await?;
+        Ok(sig)
+    }
+
+    /// This is not supported by BanksClient
+    async fn fetch_transaction(
+        &self,
+        _signature: &Signature,
+    ) -> EllipsisClientResult<ParsedTransaction> {
+        unimplemented!();
+    }
+
+    async fn fetch_latest_blockhash(&self) -> std::result::Result<Hash, EllipsisClientError> {
+        self.write()
+            .await
+            .get_latest_blockhash()
+            .await
+            .map_err(EllipsisClientError::from)
+    }
+
+    async fn fetch_account(
+        &self,
+        key: Pubkey,
+    ) -> std::result::Result<Account, EllipsisClientError> {
+        self.write()
+            .await
+            .get_account_with_commitment(key, CommitmentLevel::Confirmed)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to get account").into())
     }
 }
