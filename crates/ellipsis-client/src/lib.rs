@@ -1,5 +1,4 @@
 pub mod ellipsis_client;
-pub mod grpc_client;
 
 pub use ellipsis_client::*;
 pub use ellipsis_transaction_utils as transaction_utils;
