@@ -199,7 +199,6 @@ pub async fn transaction_subscribe(
                     SolanaCommitmentLevel::Processed => CommitmentLevel::Processed as i32,
                     SolanaCommitmentLevel::Confirmed => CommitmentLevel::Confirmed as i32,
                     SolanaCommitmentLevel::Finalized => CommitmentLevel::Finalized as i32,
-                    _ => CommitmentLevel::Confirmed as i32,
                 })
                 .unwrap_or(CommitmentLevel::Confirmed as i32);
             println!("Subscribing with commitment level: {:?}", commitment);
@@ -214,6 +213,7 @@ pub async fn transaction_subscribe(
                 transactions_status: HashMap::new(),
                 ping: None,
                 entry: HashMap::new(),
+                from_slot: None,
             };
             let (_, mut stream) = client
                 .subscribe_with_request(Some(subscribe_request))
