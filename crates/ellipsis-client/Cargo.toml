@@ -1,42 +1,42 @@
 [package]
 name = "ellipsis-client"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 description = "Lightweight interface for interacting with the Solana blockchain"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-itertools = { workspace = true } 
-bs58 = { workspace = true } 
-thiserror = { workspace = true } 
-solana-program = { workspace = true } 
-solana-logger = { workspace = true } 
-solana-transaction-status = { workspace = true } 
-solana-bpf-loader-program = { workspace = true } 
-solana-program-runtime = { workspace = true } 
-solana-runtime = { workspace = true } 
-solana-sdk = { workspace = true } 
-solana-send-transaction-service = { workspace = true } 
-solana-client = { workspace = true } 
-solana-banks-client = { workspace = true } 
-solana-vote-program = { workspace = true } 
-async-trait = { workspace = true } 
-tokio = { workspace = true } 
-anyhow = { workspace = true } 
-bincode = { workspace = true } 
-assert_matches = { workspace = true } 
-base64 = { workspace = true } 
-borsh = { workspace = true } 
-chrono-humanize = { workspace = true } 
-crossbeam-channel = { workspace = true } 
-log = { workspace = true } 
-serde = { workspace = true } 
-futures = { workspace = true } 
-lazy_static = { workspace = true } 
-tarpc = { workspace = true } 
-tokio-serde = { workspace = true } 
-yellowstone-grpc-client = { workspace = true } 
-yellowstone-grpc-proto = { workspace = true } 
-backoff = { workspace = true } 
-ellipsis-transaction-utils = { version = "1.0.0", path = "../transaction-utils" }
+anyhow = { workspace = true }
+assert_matches = { workspace = true }
+async-trait = { workspace = true }
+backoff = { workspace = true }
+base64 = { workspace = true }
+bincode = { workspace = true }
+borsh = { workspace = true }
+bs58 = { workspace = true }
+chrono-humanize = { workspace = true }
+crossbeam-channel = { workspace = true }
+ellipsis-transaction-utils = { version = "1.1.0", path = "../transaction-utils" }
+futures = { workspace = true }
+itertools = { workspace = true }
+lazy_static = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+solana-banks-client = { workspace = true }
+solana-bpf-loader-program = { workspace = true }
+solana-client = { workspace = true }
+solana-logger = { workspace = true }
+solana-program = { workspace = true }
+solana-program-runtime = { workspace = true }
+solana-runtime = { workspace = true }
+solana-sdk = { workspace = true }
+solana-send-transaction-service = { workspace = true }
+solana-transaction-status = { workspace = true }
+solana-vote-program = { workspace = true }
+tarpc = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-serde = { workspace = true }
 tracing = { workspace = true }
+yellowstone-grpc-client = { workspace = true }
+yellowstone-grpc-proto = { workspace = true }
