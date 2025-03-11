@@ -26,6 +26,7 @@ pub struct ParsedInstruction {
     pub program_id: String,
     pub accounts: Vec<String>,
     pub data: Vec<u8>,
+    pub stack_height: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -46,6 +47,7 @@ pub fn parse_ui_compiled_instruction(
             .map(|i| account_keys[*i as usize].clone())
             .collect(),
         data: bs58::decode(c.data.clone()).into_vec().unwrap(),
+        stack_height: c.stack_height,
     }
 }
 
@@ -60,6 +62,7 @@ pub fn parse_ui_instruction(
                 program_id: pd.program_id.clone(),
                 accounts: pd.accounts.clone(),
                 data: bs58::decode(&pd.data.clone()).into_vec().unwrap(),
+                stack_height: pd.stack_height,
             },
             _ => panic!("Unsupported instruction encoding"),
         },
@@ -78,6 +81,7 @@ pub fn parse_compiled_instruction(
             .map(|i| account_keys[*i as usize].clone())
             .collect(),
         data: instruction.data.clone(),
+        stack_height: Some(1),
     }
 }
 
@@ -287,4 +291,133 @@ pub fn parse_encoded_transaction_with_status_meta(
         is_err,
         fee_payer: keys[0].clone(),
     })
+}
+
+#[derive(Debug, Clone)]
+pub struct InstructionStack {
+    pub instruction: ParsedInstruction,
+    pub stack_height: u32,
+    pub instructions_in_stack: Vec<InstructionStack>,
+    pub flatten_index: usize,
+}
+
+impl InstructionStack {
+    pub fn from_parsed_transaction(tx: &ParsedTransaction) -> Vec<InstructionStack> {
+        // First create stacks with temporary indices
+        let mut instruction_stacks = tx
+            .instructions
+            .iter()
+            .map(|instruction| InstructionStack {
+                instruction: instruction.clone(),
+                // transaction.instructions is the outermost instructions, and the stack_height is 1 (from Solana's impl)
+                stack_height: 1,
+                instructions_in_stack: vec![],
+                flatten_index: 0, // will be updated in the second pass
+            })
+            .collect::<Vec<_>>();
+
+        // build the tree structure
+        for ii in tx.inner_instructions.iter() {
+            if let Some(first_ii) = ii.first() {
+                let current_instruction_stack =
+                    &mut instruction_stacks[first_ii.parent_index as usize];
+                parse_inner_instuction_stack(
+                    current_instruction_stack,
+                    // Here we start with the outermost *inner* instructions, where the stack_height begins at 2 (cuz it's the second level of instructions)
+                    2,
+                    0,
+                    &ii,
+                    &mut 0, // dummy value
+                );
+            }
+        }
+
+        // assign the flatten index by dfs
+        let mut current_index = 0;
+        for stack in instruction_stacks.iter_mut() {
+            assign_indices_dfs(stack, &mut current_index);
+        }
+
+        instruction_stacks
+    }
+}
+
+fn assign_indices_dfs(stack: &mut InstructionStack, current_index: &mut usize) {
+    stack.flatten_index = *current_index;
+    *current_index += 1;
+
+    for inner in stack.instructions_in_stack.iter_mut() {
+        assign_indices_dfs(inner, current_index);
+    }
+}
+
+fn parse_inner_instuction_stack(
+    current_stack: &mut InstructionStack,
+    current_stack_height: u32,
+    inner_inst_cursor: usize,
+    inner_instructions: &Vec<ParsedInnerInstruction>,
+    total_instructions: &mut usize,
+) -> usize {
+    if inner_inst_cursor >= inner_instructions.len() {
+        return inner_inst_cursor;
+    }
+
+    let current_instruction = &inner_instructions[inner_inst_cursor];
+    let stack_height = current_instruction
+        .instruction
+        .stack_height
+        .expect("Inner instruction must have stack height");
+
+    if stack_height < current_stack_height {
+        return inner_inst_cursor;
+    }
+
+    if stack_height == current_stack_height {
+        current_stack.instructions_in_stack.push(InstructionStack {
+            instruction: current_instruction.instruction.clone(),
+            stack_height: current_stack_height,
+            instructions_in_stack: vec![],
+            flatten_index: 0, // dummy value
+        });
+        *total_instructions += 1;
+
+        // Process next instruction at same level
+        return parse_inner_instuction_stack(
+            current_stack,
+            current_stack_height,
+            inner_inst_cursor + 1,
+            inner_instructions,
+            total_instructions,
+        );
+    }
+
+    // case when stack_height > current
+    assert_eq!(
+        stack_height,
+        current_stack_height + 1,
+        "Stack height can only increase by 1"
+    );
+
+    // Get the most recently added instruction stack
+    let last_stack = current_stack
+        .instructions_in_stack
+        .last_mut()
+        .expect("Must have a parent instruction before going deeper");
+
+    // Process instruction at deeper level and continue with remaining instructions
+    let new_cursor = parse_inner_instuction_stack(
+        last_stack,
+        stack_height,
+        inner_inst_cursor,
+        inner_instructions,
+        total_instructions,
+    );
+
+    parse_inner_instuction_stack(
+        current_stack,
+        current_stack_height,
+        new_cursor,
+        inner_instructions,
+        total_instructions,
+    )
 }

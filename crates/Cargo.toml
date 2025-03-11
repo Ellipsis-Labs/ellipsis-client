@@ -2,6 +2,11 @@
 resolver = "2"
 members = ["ellipsis-client", "transaction-utils"]
 
+[workspace.package]
+version = "1.2.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
 [profile.release]
 lto = "fat"
 codegen-units = 1
@@ -18,26 +23,15 @@ borsh = "0.10.4"
 bs58 = "0.5.1"
 chrono-humanize = "0.2.3"
 crossbeam-channel = "0.5.14"
+ellipsis-transaction-utils = { path = "transaction-utils" }
+ellipsis-client = { path = "ellipsis-client" }
 futures = "0.3.31"
 itertools = "0.14.0"
 lazy_static = "1.5.0"
 log = "0.4.22"
 serde = "1.0.217"
-solana-banks-client = "~2.1.0"
-solana-bpf-loader-program = "~2.1.0"
-solana-client = "~2.1.0"
-solana-logger = "~2.1.0"
-solana-program = "~2.1.0"
-solana-program-runtime = "~2.1.0"
-solana-runtime = "~2.1.0"
-solana-sdk = "~2.1.0"
-solana-send-transaction-service = "~2.1.0"
-solana-transaction-status = "~2.1.0"
-solana-vote-program = "~2.1.0"
 tarpc = { version = "0.35.0", features = ["full"] }
 thiserror = "2.0.11"
 tokio = { version = "1.43.0", features = ["macros"] }
 tokio-serde = { version = "0.9.0", features = ["bincode"] }
 tracing = { version = "0.1.41", features = ["log"] }
-yellowstone-grpc-client = "4.1.0"
-yellowstone-grpc-proto = "4.1.1"
