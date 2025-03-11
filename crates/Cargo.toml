@@ -23,7 +23,7 @@ borsh = "0.10.4"
 bs58 = "0.5.1"
 chrono-humanize = "0.2.3"
 crossbeam-channel = "0.5.14"
-ellipsis-transaction-utils = { path = "transaction-utils" }
+ellipsis-transaction-utils = { path = "transaction-utils", version = "1.2.0" }
 ellipsis-client = { path = "ellipsis-client" }
 futures = "0.3.31"
 itertools = "0.14.0"
