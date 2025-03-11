@@ -1,13 +1,13 @@
 [package]
 name = "ellipsis-transaction-utils"
-version = "1.1.0"
-edition = "2021"
 description = "A library for sanely parsing Solana transactions."
-license = "MIT OR Apache-2.0"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
 bs58 = { workspace = true }
 itertools = { workspace = true }
 serde = { workspace = true }
-solana-sdk = { workspace = true }
-solana-transaction-status = { workspace = true }
+solana-sdk = ">=1.16"
+solana-transaction-status = ">=1.16"

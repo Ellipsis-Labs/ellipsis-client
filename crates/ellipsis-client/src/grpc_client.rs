@@ -54,6 +54,7 @@ impl YellowstoneTransaction {
                     .map(|i| keys[*i as usize].clone())
                     .collect(),
                 data: instruction.data.clone(),
+                stack_height: Some(1),
             })
             .collect_vec();
         (keys, instructions)
@@ -95,6 +96,7 @@ impl YellowstoneTransaction {
                                 .map(|i| keys[*i as usize].clone())
                                 .collect(),
                             data: i.data.clone(),
+                            stack_height: i.stack_height,
                         },
                     })
                     .collect::<Vec<ParsedInnerInstruction>>()
