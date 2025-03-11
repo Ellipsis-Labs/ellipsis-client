@@ -54,6 +54,7 @@ impl YellowstoneTransaction {
                     .map(|i| keys[*i as usize].clone())
                     .collect(),
                 data: instruction.data.clone(),
+                // transaction.instructions is the outermost instructions, and the stack_height is 1 (from Solana's impl)
                 stack_height: Some(1),
             })
             .collect_vec();

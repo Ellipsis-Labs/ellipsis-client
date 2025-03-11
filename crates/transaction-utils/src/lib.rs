@@ -309,6 +309,7 @@ impl InstructionStack {
             .iter()
             .map(|instruction| InstructionStack {
                 instruction: instruction.clone(),
+                // transaction.instructions is the outermost instructions, and the stack_height is 1 (from Solana's impl)
                 stack_height: 1,
                 instructions_in_stack: vec![],
                 flatten_index: 0, // will be updated in the second pass
@@ -322,6 +323,7 @@ impl InstructionStack {
                     &mut instruction_stacks[first_ii.parent_index as usize];
                 parse_inner_instuction_stack(
                     current_instruction_stack,
+                    // Here we start with the outermost *inner* instructions, where the stack_height begins at 2 (cuz it's the second level of instructions)
                     2,
                     0,
                     &ii,
