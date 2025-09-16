@@ -22,21 +22,21 @@ itertools = { workspace = true }
 lazy_static = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
-solana-banks-client = "~2.1.0"
-solana-bpf-loader-program = "~2.1.0"
-solana-client = "~2.1.0"
-solana-logger = "~2.1.0"
-solana-program = "~2.1.0"
-solana-program-runtime = "~2.1.0"
-solana-runtime = "~2.1.0"
-solana-sdk = "~2.1.0"
-solana-send-transaction-service = "~2.1.0"
-solana-transaction-status = "~2.1.0"
-solana-vote-program = "~2.1.0"
+solana-banks-client = "~2.2.1"
+solana-bpf-loader-program = "~2.2.1"
+solana-client = "~2.2.1"
+solana-logger = "~2.2.1"
+solana-program = "~2.2.1"
+solana-program-runtime = "~2.2.1"
+solana-runtime = "~2.2.1"
+solana-sdk = "~2.2.1"
+solana-send-transaction-service = "~2.2.1"
+solana-transaction-status = "~2.2.1"
+solana-vote-program = "~2.2.1"
 tarpc = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-serde = { workspace = true }
 tracing = { workspace = true }
-yellowstone-grpc-client = "4.1.0"
-yellowstone-grpc-proto = "4.1.1"
+yellowstone-grpc-client = "6.1.0"
+yellowstone-grpc-proto = "6.1.0"
