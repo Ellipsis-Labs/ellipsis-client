@@ -4,15 +4,15 @@ use ellipsis_transaction_utils::{parse_transaction, ParsedTransaction};
 use itertools::Itertools;
 use solana_banks_client::BanksClient;
 use solana_banks_client::BanksClientError;
-use solana_client::rpc_config::CommitmentConfig;
-use solana_client::rpc_config::CommitmentLevel;
 use solana_client::rpc_config::RpcTransactionConfig;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_program::{
     hash::Hash, instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, rent::Rent,
 };
+use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::{
     account::Account,
+    commitment_config::CommitmentConfig,
     signature::{Keypair, Signature},
     signer::Signer,
     transaction::Transaction,
@@ -79,7 +79,7 @@ impl From<std::io::Error> for EllipsisClientError {
 }
 
 pub fn clone_keypair(keypair: &Keypair) -> Keypair {
-    Keypair::new_from_array(*keypair.secret_bytes())
+    Keypair::from_bytes(&keypair.to_bytes()).unwrap()
 }
 
 #[async_trait]
