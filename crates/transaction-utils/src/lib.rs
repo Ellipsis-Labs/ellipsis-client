@@ -1,8 +1,7 @@
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use solana_sdk::{
-    clock::UnixTimestamp, instruction::CompiledInstruction, message::VersionedMessage,
-};
+use solana_message::compiled_instruction::CompiledInstruction;
+use solana_sdk::{clock::UnixTimestamp, message::VersionedMessage};
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
     EncodedTransaction, EncodedTransactionWithStatusMeta, UiCompiledInstruction, UiInstruction,

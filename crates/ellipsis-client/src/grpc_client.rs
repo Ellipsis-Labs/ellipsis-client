@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use backoff::backoff::Backoff;
 use itertools::Itertools;
+use solana_client::rpc_config::CommitmentLevel as SolanaCommitmentLevel;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use tokio::sync::mpsc::UnboundedSender;
@@ -16,8 +17,6 @@ use {
         SubscribeRequestFilterTransactions,
     },
 };
-
-use solana_sdk::commitment_config::CommitmentLevel as SolanaCommitmentLevel;
 
 use borsh::BorshDeserialize;
 use ellipsis_transaction_utils::{ParsedInnerInstruction, ParsedInstruction, ParsedTransaction};

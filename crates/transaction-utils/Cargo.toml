@@ -9,5 +9,6 @@ license = { workspace = true }
 bs58 = { workspace = true }
 itertools = { workspace = true }
 serde = { workspace = true }
-solana-sdk = ">=1.16, <=2.2.2"
-solana-transaction-status = ">=1.16, <=2.2.2"
+solana-sdk = ">2"
+solana-transaction-status = ">2"
+solana-message = ">2"
